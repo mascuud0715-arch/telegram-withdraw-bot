@@ -231,7 +231,7 @@ async def crypto_payment(call: CallbackQuery):
 @dp.callback_query(F.data == "crypto_confirm")
 async def crypto_confirm(call: CallbackQuery):
     uid = call.from_user.id
-    code = generate_code()
+    OTP.... = 
     users[uid]["code"] = code
 
     otp_msg = await call.message.edit_text("OTP READY...")
