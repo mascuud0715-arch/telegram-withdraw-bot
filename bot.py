@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
+ADMIN_ID = int(os.getenv("ADMIN_ID", "7983838654"))
 
 bot = Bot(BOT_TOKEN, parse_mode="Markdown")
 dp = Dispatcher(storage=MemoryStorage())
