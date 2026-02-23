@@ -70,7 +70,7 @@ async def virtual(call: CallbackQuery):
         [InlineKeyboardButton("TELEGRAM",callback_data="telegram")],
         [InlineKeyboardButton("GOOGLE",callback_data="google")]
     ])
-    await call.message.edit_text("Dooro Adeeg:",reply_markup=kb) 
+    await call.message.edit_text("Dooro Adeeg:",reply_markup=kb)
 
 # ===== SERVICE SELECTION =====
 @dp.callback_query(F.data.in_(["whatsapp","tiktok","telegram","google"]))
@@ -140,7 +140,7 @@ async def card_menu(call: CallbackQuery):
 async def card_selected(call: CallbackQuery):
     card_type=call.data
     user_data[call.from_user.id]["card"]=card_type
-    await call.message.edit_text(f"{card_type} selected.\nPayment: $15" if card_type=="vip" else "$1") 
+    await call.message.edit_text(f"{card_type} selected.\nPayment: $15" if card_type=="vip" else "$1")
 
 # ===== CHECK CODE =====
 @dp.message(F.text=="Check Code")
@@ -218,4 +218,5 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__=="__main__":
+    import asyncio
     asyncio.run(main())
