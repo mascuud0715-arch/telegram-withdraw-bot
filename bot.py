@@ -240,7 +240,7 @@ async def crypto_user_confirm(call: CallbackQuery):
     # Kadib 10 sec fariin cusub haddii admin aanu aqbalin
     await asyncio.sleep(0.5)
     await call.message.answer(
-        f"Fadlan Lacagta soo dir 💵 si dalabkaaga loo xaqiijiyo.\nNumber: +252907868526\nMarkaad lacag bixiso, OTP-gaaga dhabta ah waxaa ku siin doona Admin."
+        f"Fadlan Lacagta soo dir 💵 si dalabkaaga loo Xaqiijiyo Markaad lacag bixiso, OTP-gaaga iyo numberkaagaba waad Helaysaa ."
     )
 
 # ================= USER CANCEL =================
