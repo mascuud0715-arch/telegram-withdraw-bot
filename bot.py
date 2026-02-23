@@ -2,6 +2,7 @@ import os
 import random
 import asyncio
 import logging
+from aiogram.filters import Command
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import *
 from aiogram.fsm.storage.memory import MemoryStorage
