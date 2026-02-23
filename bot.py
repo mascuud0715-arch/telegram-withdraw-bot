@@ -71,39 +71,114 @@ async def new_order(msg: Message):
 @dp.callback_query(F.data == "virtual")
 async def virtual(call: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="WhatsApp", callback_data="v_WhatsApp")],
-        [InlineKeyboardButton(text="TikTok", callback_data="v_TikTok")],
-        [InlineKeyboardButton(text="Google", callback_data="v_Google")],
-        [InlineKeyboardButton(text="Telegram", callback_data="v_Telegram")]
+        [InlineKeyboardButton(text="WhatsApp", callback_data="v_whatsapp")],
+        [InlineKeyboardButton(text="TikTok", callback_data="v_tiktok")],
+        [InlineKeyboardButton(text="Google", callback_data="v_google")],
+        [InlineKeyboardButton(text="Telegram", callback_data="v_telegram")]
     ])
     await call.message.edit_text("Dooro Platform:", reply_markup=kb)
 
+
+# ===== PLATFORM SELECTED =====
 @dp.callback_query(F.data.startswith("v_"))
-async def virtual_process(call: CallbackQuery):
+async def virtual_platform(call: CallbackQuery, state: FSMContext):
+    platform = call.data.split("_")[1]
     number = normal_number()
-    code = generate_code()
 
     users[call.from_user.id] = {
         "type": "virtual",
-        "number": number,
-        "code": code
+        "platform": platform,
+        "number": number
     }
 
-    msg = await call.message.edit_text("OTP Searching...")
-    await countdown(msg, "OTP Searching", 5)
+    # Animation Searching
+    msg = await call.message.edit_text("Searching Number...")
+    await countdown(msg, "Searching Number", 5)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="APPROVE", callback_data=f"approve_{call.from_user.id}")],
-        [InlineKeyboardButton(text="REJECT", callback_data=f"reject_{call.from_user.id}")]
+        [InlineKeyboardButton(text="LOCAL", callback_data="v_local")],
+        [InlineKeyboardButton(text="CRYPTO", callback_data="v_crypto")]
     ])
 
-    await bot.send_message(
-        ADMIN_ID,
-        f"Virtual Request\nUser: {call.from_user.id}",
+    await msg.edit_text(
+        f"Number: {number}\n\n"
+        "Dir Lacagta si aad u hesho OTP.",
         reply_markup=kb
     )
 
-    await msg.edit_text("Codsiga Virtual waa la diray ⏳")
+
+# ================= VIRTUAL LOCAL =================
+@dp.callback_query(F.data == "v_local")
+async def virtual_local(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CONFIRM", callback_data="v_confirm")],
+        [InlineKeyboardButton(text="CANCEL", callback_data="cancel")]
+    ])
+
+    await call.message.edit_text(
+        "Ku dir lacagta numberkan:\n\n"
+        "+252907868526",
+        reply_markup=kb
+    )
+
+
+# ================= VIRTUAL CRYPTO =================
+@dp.callback_query(F.data == "v_crypto")
+async def virtual_crypto(call: CallbackQuery):
+    text = (
+        "Dir Crypto:\n\n"
+        "BNB:\n"
+        "`0x98ffcb29a4fc182d461ebdba54648d8fe24597ac`\n\n"
+        "USDT-BEP20:\n"
+        "`0x98ffcb29a4fc182d461ebdba54648d8fe24597ac`\n\n"
+        "Taabo si uu auto-copy u noqdo."
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CONFIRM PAYMENT", callback_data="v_confirm")]
+    ])
+
+    await call.message.edit_text(text, reply_markup=kb)
+
+
+# ================= CONFIRM PAYMENT =================
+@dp.callback_query(F.data == "v_confirm")
+async def virtual_confirm(call: CallbackQuery, state: FSMContext):
+    await call.message.answer(
+        "Soo dir Screenshot Payment si loo xaqiijiyo."
+    )
+    await state.set_state(CardState.payment_screenshot)
+
+
+# ================= ADMIN RECEIVE VIRTUAL =================
+@dp.message(CardState.payment_screenshot, F.photo)
+async def receive_virtual_screenshot(msg: Message, state: FSMContext):
+    uid = msg.from_user.id
+
+    if uid not in users:
+        return
+
+    users[uid]["screenshot"] = msg.photo[-1].file_id
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="APPROVE", callback_data=f"approve_{uid}")],
+        [InlineKeyboardButton(text="REJECT", callback_data=f"reject_{uid}")]
+    ])
+
+    await bot.send_photo(
+        ADMIN_ID,
+        users[uid]["screenshot"],
+        caption=(
+            f"Virtual Payment\n\n"
+            f"User: {uid}\n"
+            f"Platform: {users[uid]['platform']}\n"
+            f"Number: {users[uid]['number']}"
+        ),
+        reply_markup=kb
+    )
+
+    await msg.answer("Codsigaaga waa La diray Fadlan Sug Xaqiijinta!⏳")
+    await state.clear()
 
 
 # ================= CARD =================
