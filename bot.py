@@ -1,217 +1,237 @@
 import os
-import json
+import random
 import asyncio
 import logging
-from typing import Dict
-
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import (
-    Message, CallbackQuery,
-    ReplyKeyboardMarkup, KeyboardButton,
-    InlineKeyboardMarkup, InlineKeyboardButton
-)
+from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
 
-# ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 7983838654
-DATA_FILE = "buttons.json"
+ADMIN_ID = 7983838654  # Admin ID
 
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN missing in Railway Variables")
-
-bot = Bot(BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
 logging.basicConfig(level=logging.INFO)
 
-# ================= STORAGE =================
-def load_buttons() -> Dict:
-    if not os.path.exists(DATA_FILE):
-        return {}
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
 
-def save_buttons(data: Dict):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+users = {}
 
-buttons_data = load_buttons()
+# ============ STATES ============
+class CardState(StatesGroup):
+    full_name = State()
+    mother = State()
+    photo = State()
+    payment_screenshot = State()
 
-# ================= STATES =================
-class AdminAddState(StatesGroup):
-    waiting_name = State()
-    waiting_type = State()
-    waiting_animation = State()
-    waiting_animation_type = State()
-    waiting_reply = State()
+class CodeState(StatesGroup):
+    code = State()
 
-# ================= ANIMATIONS =================
-async def countdown_animation(message, seconds=5):
-    msg = await message.answer("Starting...")
-    for i in range(seconds, 0, -1):
-        await msg.edit_text(f"⏳ {i}")
+# ============ HELPERS ============
+def normal_number():
+    return "+25263" + "".join(str(random.randint(0,9)) for _ in range(7))
+
+def vip_number():
+    d = str(random.randint(4,9))
+    return "+25263" + d*3 + str(random.randint(0,9)) + d*3
+
+def generate_code():
+    return "".join(random.choices("0123456789", k=6))
+
+async def countdown(msg, text, sec=5):
+    for i in range(sec,0,-1):
+        await msg.edit_text(f"{text}\n⏳ {i} sec")
         await asyncio.sleep(1)
+    await msg.edit_text("Processing...")
 
-async def dots_animation(message):
-    msg = await message.answer("Processing")
-    for _ in range(5):
-        for dots in ["•", "••", "•••", "••••"]:
-            await msg.edit_text(f"Processing {dots}")
-            await asyncio.sleep(0.5)
-
-async def spinner_animation(message):
-    msg = await message.answer("Processing...")
-    frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
-    for i in range(20):
-        await msg.edit_text(f"{frames[i % len(frames)]} Processing...")
-        await asyncio.sleep(0.2)
-
-# ================= MENUS =================
-def main_menu_kb():
-    rows = []
-    for key, val in buttons_data.items():
-        if val["type"] == "reply":
-            rows.append([KeyboardButton(val["text"])])
-    rows.append([KeyboardButton("📂 Open Menu")])
-    rows.append([KeyboardButton("ℹ️ Help")])
-    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
-
-def inline_menu():
-    rows = []
-    for key, val in buttons_data.items():
-        if val["type"] == "inline":
-            rows.append([InlineKeyboardButton(val["text"], callback_data=f"dyn_{key}")])
-    rows.append([InlineKeyboardButton("⬅️ Back", callback_data="back_main")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-def admin_panel_kb():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton("➕ Add Button")],
-            [KeyboardButton("📋 List Buttons")],
-            [KeyboardButton("⬅️ Back")]
-        ],
+# ============ START ============
+@dp.message(Command("start"))
+async def start(msg: types.Message):
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton("New Order"), KeyboardButton("Check Code")]],
         resize_keyboard=True
     )
+    await msg.answer("Ku soo dhawoow Service Bot 🤖", reply_markup=kb)
 
-# ================= START =================
-@dp.message(Command("start"))
-async def start(msg: Message):
-    await msg.answer("Main Menu:", reply_markup=main_menu_kb())
+# ============ NEW ORDER ============
+@dp.message(F.text=="New Order")
+async def new_order(msg: types.Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("VIRTUAL", callback_data="virtual")],
+        [InlineKeyboardButton("CARD", callback_data="card")]
+    ])
+    await msg.answer("Dooro adeeg:", reply_markup=kb)
 
-# ================= MAIN =================
-@dp.message(F.text == "📂 Open Menu")
-async def open_menu(msg: Message):
-    await msg.answer("Dooro:", reply_markup=inline_menu())
+# ============ VIRTUAL ============
+@dp.callback_query(F.data=="virtual")
+async def virtual(call: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("WhatsApp", callback_data="v_WhatsApp")],
+        [InlineKeyboardButton("TikTok", callback_data="v_TikTok")],
+        [InlineKeyboardButton("Google", callback_data="v_Google")],
+        [InlineKeyboardButton("Telegram", callback_data="v_Telegram")]
+    ])
+    await call.message.edit_text("Dooro Platform:", reply_markup=kb)
 
-@dp.callback_query(F.data == "back_main")
-async def back_main(call: CallbackQuery):
-    await call.message.delete()
-    await call.message.answer("Main Menu:", reply_markup=main_menu_kb())
+@dp.callback_query(F.data.startswith("v_"))
+async def virtual_process(call: types.CallbackQuery):
+    platform = call.data.split("_")[1]
+    number = normal_number()
+    code = generate_code()
+    users[call.from_user.id] = {"type":"virtual","platform":platform,"number":number,"code":code}
 
-# ================= DYNAMIC =================
-@dp.callback_query(F.data.startswith("dyn_"))
-async def dynamic_handler(call: CallbackQuery):
-    key = call.data.split("_")[1]
-    data = buttons_data.get(key)
-    if not data:
-        return
+    msg = await call.message.edit_text("OTP Searching...")
+    await countdown(msg,"OTP Searching",5)
 
-    animation = data.get("animation")
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("LOCAL", callback_data="v_local")],
+        [InlineKeyboardButton("CRYPTO", callback_data="v_crypto")]
+    ])
+    await msg.edit_text(f"Number: {number}\nDooro Payment Method:", reply_markup=kb)
 
-    if animation == "countdown":
-        await countdown_animation(call.message)
-    elif animation == "dots":
-        await dots_animation(call.message)
-    elif animation == "spinner":
-        await spinner_animation(call.message)
+# ============ VIRTUAL PAYMENT ============
+@dp.callback_query(F.data=="v_local")
+async def v_local(call: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("CONFIRM", callback_data="v_confirm")],
+        [InlineKeyboardButton("CANCEL", callback_data="cancel")]
+    ])
+    await call.message.edit_text("+252907868526\nSend Payment", reply_markup=kb)
 
-    await call.message.answer(data["reply"])
+@dp.callback_query(F.data=="v_crypto")
+async def v_crypto(call: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("BNB: 0x98ffcb29a4fc182d461ebdba54648d8fe24597ac", callback_data="copy_bnb")],
+        [InlineKeyboardButton("USDT-BEP20: 0x98ffcb29a4fc182d461ebdba54648d8fe24597ac", callback_data="copy_usdt")],
+        [InlineKeyboardButton("CONFIRM", callback_data="v_confirm")],
+        [InlineKeyboardButton("CANCEL", callback_data="cancel")]
+    ])
+    await call.message.edit_text("Send Crypto Payment:", reply_markup=kb)
 
-@dp.message()
-async def reply_dynamic(msg: Message):
-    for key, val in buttons_data.items():
-        if val["type"] == "reply" and msg.text == val["text"]:
-            animation = val.get("animation")
-            if animation == "countdown":
-                await countdown_animation(msg)
-            elif animation == "dots":
-                await dots_animation(msg)
-            elif animation == "spinner":
-                await spinner_animation(msg)
-            await msg.answer(val["reply"])
-            return
+@dp.callback_query(F.data=="v_confirm")
+async def v_confirm(call: types.CallbackQuery):
+    msg = await call.message.edit_text("Waiting Admin Approval...")
+    await countdown(msg,"Admin Approval Countdown",10)
+    user = users.get(call.from_user.id)
+    if user:
+        await call.message.answer("PLEASE SEND MONEY 💵")
 
-# ================= ADMIN =================
-@dp.message(Command("admin"))
-async def admin_panel(msg: Message):
-    if msg.from_user.id != ADMIN_ID:
-        return
-    await msg.answer("Admin Panel:", reply_markup=admin_panel_kb())
+# ============ CARD ============
+@dp.callback_query(F.data=="card")
+async def card(call: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("VIP - $15", callback_data="vip")],
+        [InlineKeyboardButton("NORMAL - $1", callback_data="normal")]
+    ])
+    await call.message.edit_text("Dooro Card Type:", reply_markup=kb)
 
-@dp.message(F.text == "➕ Add Button")
-async def add_button(msg: Message, state: FSMContext):
-    if msg.from_user.id != ADMIN_ID:
-        return
-    await msg.answer("Magaca button-ka?")
-    await state.set_state(AdminAddState.waiting_name)
+@dp.callback_query(F.data.in_(["vip","normal"]))
+async def card_type(call: types.CallbackQuery, state: FSMContext):
+    number = vip_number() if call.data=="vip" else normal_number()
+    users[call.from_user.id] = {"type":"card","level":call.data,"number":number}
+    await call.message.answer("Geli Magaca Saddexan:")
+    await state.set_state(CardState.full_name)
 
-@dp.message(AdminAddState.waiting_name)
-async def get_name(msg: Message, state: FSMContext):
-    await state.update_data(name=msg.text)
-    await msg.answer("Type? inline ama reply")
-    await state.set_state(AdminAddState.waiting_type)
+@dp.message(CardState.full_name)
+async def name(msg: types.Message, state: FSMContext):
+    users[msg.from_user.id]["name"]=msg.text
+    await msg.answer("Geli Magaca Hooyada:")
+    await state.set_state(CardState.mother)
 
-@dp.message(AdminAddState.waiting_type)
-async def get_type(msg: Message, state: FSMContext):
-    await state.update_data(type=msg.text.lower())
-    await msg.answer("Animation? haa/maya")
-    await state.set_state(AdminAddState.waiting_animation)
+@dp.message(CardState.mother)
+async def mother(msg: types.Message, state: FSMContext):
+    users[msg.from_user.id]["mother"]=msg.text
+    await msg.answer("Soo dir Sawirkaaga:")
+    await state.set_state(CardState.photo)
 
-@dp.message(AdminAddState.waiting_animation)
-async def ask_anim(msg: Message, state: FSMContext):
-    if msg.text.lower() == "haa":
-        await msg.answer("Dooro: countdown / dots / spinner")
-        await state.set_state(AdminAddState.waiting_animation_type)
+@dp.message(CardState.photo, F.photo)
+async def photo(msg: types.Message, state: FSMContext):
+    users[msg.from_user.id]["photo"]=msg.photo[-1].file_id
+    kb=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("LOCAL",callback_data="pay_local")],
+        [InlineKeyboardButton("CRYPTO",callback_data="pay_crypto")]
+    ])
+    await msg.answer("Dooro Payment Method:",reply_markup=kb)
+
+# ============ PAYMENT ============
+@dp.callback_query(F.data=="pay_local")
+async def pay_local(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("CONFIRM", callback_data="confirm_pay")],
+        [InlineKeyboardButton("CANCEL", callback_data="cancel")]
+    ])
+    await call.message.edit_text("+252907868526\nSend Payment", reply_markup=kb)
+
+@dp.callback_query(F.data=="pay_crypto")
+async def pay_crypto(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("BNB: 0x98ffcb29a4fc182d461ebdba54648d8fe24597ac", callback_data="copy_bnb")],
+        [InlineKeyboardButton("USDT-BEP20: 0x98ffcb29a4fc182d461ebdba54648d8fe24597ac", callback_data="copy_usdt")],
+        [InlineKeyboardButton("CONFIRM", callback_data="confirm_pay")],
+        [InlineKeyboardButton("CANCEL", callback_data="cancel")]
+    ])
+    await call.message.edit_text("Send Crypto Payment:", reply_markup=kb)
+
+@dp.callback_query(F.data=="confirm_pay")
+async def confirm_pay(call: CallbackQuery, state: FSMContext):
+    await call.message.answer("Soo sawir Lacag bixintaada si loo xaqiijiyo:")
+    await state.set_state(CardState.payment_screenshot)
+
+@dp.message(CardState.payment_screenshot, F.photo)
+async def screenshot(msg: types.Message, state: FSMContext):
+    users[msg.from_user.id]["screenshot"]=msg.photo[-1].file_id
+    user = users[msg.from_user.id]
+    user["code"]=generate_code()
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("APPROVE", callback_data=f"approve_{msg.from_user.id}")],
+        [InlineKeyboardButton("REJECT", callback_data=f"reject_{msg.from_user.id}")]
+    ])
+    await bot.send_photo(
+        ADMIN_ID,
+        user["screenshot"],
+        caption=f"Card Request\nName: {user['name']}\nMother: {user['mother']}\nLevel: {user['level']}",
+        reply_markup=kb
+    )
+    await msg.answer("Codsiga waa la diray ⏳")
+    await state.clear()
+
+# ============ ADMIN ============
+@dp.callback_query(F.data.startswith("approve_"))
+async def approve(call: CallbackQuery):
+    uid = int(call.data.split("_")[1])
+    code = users[uid]["code"]
+    await bot.send_message(uid,f"Approved ✅\nCode: {code}\nUse CHECK CODE to see your number")
+    await call.message.edit_caption("Approved ✅")
+
+@dp.callback_query(F.data.startswith("reject_"))
+async def reject(call: CallbackQuery):
+    uid = int(call.data.split("_")[1])
+    await bot.send_message(uid,"Rejected ❌")
+    await call.message.edit_caption("Rejected ❌")
+
+# ============ CHECK CODE ============
+@dp.message(F.text=="Check Code")
+async def check(msg: types.Message, state: FSMContext):
+    await msg.answer("Geli Code-ka:")
+    await state.set_state(CodeState.code)
+
+@dp.message(CodeState.code)
+async def verify(msg: types.Message, state: FSMContext):
+    data = users.get(msg.from_user.id)
+    if data and msg.text == data.get("code"):
+        await msg.answer(f"Number-kaaga:\n{data['number']}")
     else:
-        await state.update_data(animation=None)
-        await msg.answer("Qor reply text:")
-        await state.set_state(AdminAddState.waiting_reply)
-
-@dp.message(AdminAddState.waiting_animation_type)
-async def save_anim_type(msg: Message, state: FSMContext):
-    await state.update_data(animation=msg.text.lower())
-    await msg.answer("Qor reply text:")
-    await state.set_state(AdminAddState.waiting_reply)
-
-@dp.message(AdminAddState.waiting_reply)
-async def save_button(msg: Message, state: FSMContext):
-    data = await state.get_data()
-    key = str(len(buttons_data) + 1)
-
-    buttons_data[key] = {
-        "text": data["name"],
-        "reply": msg.text,
-        "type": data["type"],
-        "animation": data.get("animation")
-    }
-
-    save_buttons(buttons_data)
-
-    await msg.answer("✅ Button waa la daray", reply_markup=admin_panel_kb())
+        await msg.answer("Code khaldan ❌")
     await state.clear()
 
-@dp.message(F.text == "⬅️ Back")
-async def back_admin(msg: Message, state: FSMContext):
-    await state.clear()
-    await msg.answer("Main Menu:", reply_markup=main_menu_kb())
+# ============ CANCEL ============
+@dp.callback_query(F.data=="cancel")
+async def cancel(call: CallbackQuery):
+    await call.message.edit_text("Cancelled ❌")
 
-# ================= RUN =================
-async def main():
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# ============ RUN ============
+if __name__=="__main__":
+    import asyncio
+    asyncio.run(dp.start_polling(bot))
