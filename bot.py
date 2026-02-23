@@ -12,7 +12,6 @@ ADMIN_ID = 7983838654
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# ===== STORAGE =====
 user_data = {}
 pending_admin = {}
 codes_confirmed = {}
@@ -135,81 +134,3 @@ async def card_selected(call: CallbackQuery):
     card_type=call.data
     user_data[call.from_user.id]["card"]=card_type
     await call.message.edit_text(f"{card_type} selected.\nPayment: $15" if card_type=="vip" else "$1")
-
-# ===== CHECK CODE =====
-@dp.message(F.text=="Check Code")
-async def check_code(msg: Message,state:FSMContext):
-    current_state = await state.get_state()
-    if current_state is not None:
-        await state.clear()
-    await msg.answer("Fadlan gali code-ka aad heshay:")
-    await state.set_state(CheckCodeState.waiting_code)
-
-@dp.message(CheckCodeState.waiting_code)
-async def code_input(msg: Message,state:FSMContext):
-    code=msg.text
-    if code in codes_confirmed.values():
-        await msg.answer("Fadlan qor magacaaga 3 qaybood:")
-        await state.set_state(CheckCodeState.waiting_name)
-    else:
-        await msg.answer("Code khalad ah ❌")
-        await state.clear()
-
-@dp.message(CheckCodeState.waiting_name)
-async def get_name(msg: Message,state:FSMContext):
-    await state.update_data(name=msg.text)
-    await msg.answer("Fadlan soo dir sawirkaaga (photo):")
-    await state.set_state(CheckCodeState.waiting_photo)
-
-@dp.message(CheckCodeState.waiting_photo,F.photo)
-async def get_photo(msg: Message,state:FSMContext):
-    if not msg.photo:
-        await msg.answer("Fadlan sawirkaaga dir!")
-        return
-    await state.update_data(photo=msg.photo[-1].file_id)
-    await msg.answer("Fadlan geli da'daada:")
-    await state.set_state(CheckCodeState.waiting_age)
-
-@dp.message(CheckCodeState.waiting_age)
-async def get_age(msg: Message,state:FSMContext):
-    try:
-        age=int(msg.text)
-    except:
-        await msg.answer("Fadlan geli number sax ah")
-        return
-    if age<15:
-        await msg.answer("Da'daada waa yar tahay ❌")
-        await state.clear()
-        return
-    data=await state.get_data()
-    await bot.send_message(ADMIN_ID,f"User Check Code\nName:{data['name']}\nAge:{age}")
-    await bot.send_photo(ADMIN_ID,data['photo'])
-    kb=InlineKeyboardMarkup([
-        [InlineKeyboardButton("CONFIRM",callback_data=f"confirm_user_{msg.from_user.id}"),
-         InlineKeyboardButton("REJECT",callback_data=f"reject_user_{msg.from_user.id}")]
-    ])
-    await bot.send_message(ADMIN_ID,"Confirm or Reject user",reply_markup=kb)
-    await msg.answer("Codsigaaga admin arki doona ✅")
-    await state.clear()
-
-# ===== ADMIN CONFIRM / REJECT =====
-@dp.callback_query(F.data.startswith("confirm_user_"))
-async def confirm_user(call: CallbackQuery):
-    uid=int(call.data.split("_")[-1])
-    if uid in user_data:
-        number=random_number()
-        await bot.send_message(uid,f"Admin Confirmed ✅\nYour Number: {number}")
-        await call.message.edit_text("User Confirmed ✅")
-
-@dp.callback_query(F.data.startswith("reject_user_"))
-async def reject_user(call: CallbackQuery):
-    uid=int(call.data.split("_")[-1])
-    await bot.send_message(uid,"Admin Rejected ❌")
-    await call.message.edit_text("User Rejected ❌")
-
-# ===== RUN BOT =====
-async def main():
-    await dp.start_polling(bot)
-
-if __name__=="__main__":
-    asyncio.run(main())
