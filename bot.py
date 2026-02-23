@@ -52,13 +52,13 @@ async def start(msg: types.Message):
     await msg.answer("Ku soo dhawoow Telesom Bot", reply_markup=kb)
 
 # ===== NEW ORDER =====
-@dp.message(F.text=="New Order")
-async def new_order(msg: types.Message):
+@dp.message(lambda message: message.text == "New Order")
+async def new_order(msg: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton("VIRTUAL", callback_data="virtual")],
         [InlineKeyboardButton("CARD", callback_data="card")]
     ])
-    await msg.answer("Dooro:", reply_markup=kb)
+    await msg.answer("Dooro nooca order-ka:", reply_markup=kb)
 
 # ===== VIRTUAL =====
 @dp.callback_query(F.data=="virtual")
