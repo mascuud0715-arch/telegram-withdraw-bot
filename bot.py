@@ -197,64 +197,76 @@ async def confirm_pay(call: CallbackQuery, state: FSMContext):
 async def cancel(call: CallbackQuery):
     await call.message.edit_text("Order Cancelled ❌")
 
-# ================= CRYPTO PAYMENT ===================
-@dp.callback_query(F.data == "v_pay_crypto")
-async def virtual_crypto(call: CallbackQuery):
+# ================= CRYPTO PAYMENT FULL FLOW =================
+
+@dp.callback_query(F.data == "pay_crypto" or F.data == "v_pay_crypto")
+async def crypto_payment(call: CallbackQuery):
     uid = call.from_user.id
-    bnb = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
-    usdt = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
+    bnb_address = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
+    usdt_address = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
 
     users[uid]["crypto_pending"] = True  # status pending admin
 
     text = (
         "Send Crypto:\n\n"
-        f"BNB:\n`{bnb}`\n\n"
-        f"USDT-BEP20:\n`{usdt}`\n\n"
+        f"BNB:\n`{bnb_address}`\n\n"
+        f"USDT-BEP20:\n`{usdt_address}`\n\n"
         "Taabo address-ka si uu auto-copy u noqdo."
     )
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="CONFIRM", callback_data="v_crypto_confirm")],
-        [InlineKeyboardButton(text="CANCEL", callback_data="v_crypto_cancel")]
+        [InlineKeyboardButton(text="CONFIRM", callback_data="crypto_confirm")],
+        [InlineKeyboardButton(text="CANCEL", callback_data="crypto_cancel")]
     ])
 
     msg = await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
 
+    # Countdown animation 5 sec
+    for i in range(5, 0, -1):
+        await asyncio.sleep(1)
+        await msg.edit_text(f"{text}\n⏳ {i} sec", parse_mode="Markdown", reply_markup=kb)
+
+
 # ================= CONFIRM =========================
-@dp.callback_query(F.data == "v_crypto_confirm")
-async def v_crypto_confirm(call: CallbackQuery):
+@dp.callback_query(F.data == "crypto_confirm")
+async def crypto_confirm(call: CallbackQuery):
     uid = call.from_user.id
     code = generate_code()
     users[uid]["code"] = code
 
     otp_msg = await call.message.edit_text("OTP READY...")
 
-    # Live checking animation 10 sec
+    # Live checking / OTP animation 10 sec
     for i in range(10):
         await asyncio.sleep(1)
-        await otp_msg.edit_text(f"Checking{'.' * ((i%4)+1)}")
+        dots = '.' * ((i % 4) + 1)
+        await otp_msg.edit_text(f"Checking{dots}\nNumber: {users[uid]['number']}\nCode: {code}")
 
+    # Kadib 5 sec fariin cusub
+    await asyncio.sleep(5)
     await call.message.answer(
-        f"Fadlan Lacagta soo Dir si dalabkaaga loo xaqiijiyo 💵\nNumber: +252907868526"
+        f"Fadlan lacagta soo dir si dalabkaaga loo xaqiijiyo 💵\nNumber: +252907868526"
     )
 
+
 # ================= CANCEL =========================
-@dp.callback_query(F.data == "v_crypto_cancel")
-async def v_crypto_cancel(call: CallbackQuery):
-    await call.message.edit_text("Payment Cancelled ❌")
+@dp.callback_query(F.data == "crypto_cancel")
+async def crypto_cancel(call: CallbackQuery):
     uid = call.from_user.id
     users[uid].pop("crypto_pending", None)
+    await call.message.edit_text("Payment Cancelled ❌")
+
 
 # ================= ADMIN CONFIRM / REJECT ==================
 @dp.callback_query(F.data.startswith("admin_confirm_"))
-async def admin_confirm(call: CallbackQuery):
+async def admin_confirm_crypto(call: CallbackQuery):
     uid = int(call.data.split("_")[2])
     if uid not in users:
         await call.answer("User not found")
         return
 
-    # Haddii user uu Virtual Crypto ahaa
-    if users[uid].get("type") == "virtual" and users[uid].get("crypto_pending"):
+    # Haddii user uu Virtual Crypto / Card Crypto ahaa
+    if users[uid].get("crypto_pending"):
         otp_final = generate_code()
         users[uid]["otp_final"] = otp_final
         await bot.send_message(
@@ -264,6 +276,17 @@ async def admin_confirm(call: CallbackQuery):
         users[uid].pop("crypto_pending", None)
 
     await call.message.edit_text("Approved ✅")
+
+
+@dp.callback_query(F.data.startswith("admin_reject_"))
+async def admin_reject_crypto(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+    if uid in users:
+        await bot.send_message(
+            uid,
+            f"Codsigaaga waa la diiday ❌\nFadlan lacagta ku dir Numberkan si loo xaqiijiyo:\n+252907868526"
+        )
+    await call.message.edit_text("Rejected ❌")
 
 # ================= SCREENSHOT TO ADMIN =================
 @dp.message(CardState.payment_screenshot, F.photo)
