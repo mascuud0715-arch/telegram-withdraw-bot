@@ -1,15 +1,14 @@
-# Dockerfile
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy bot and requirements
-COPY bot.py .
-COPY requirements.txt .
+# Install gcc and dependencies for aiohttp
+RUN apt-get update && apt-get install -y gcc build-essential libssl-dev libffi-dev python3-dev
 
-# Install dependencies
+COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Run the bot
+COPY bot.py .
+
 CMD ["python", "bot.py"]
