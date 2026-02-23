@@ -2,15 +2,8 @@ import os
 import random
 import asyncio
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import (
-    Message,
-    CallbackQuery,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup
-)
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command
-
-# ================= CONFIG =================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 7983838654
@@ -18,7 +11,10 @@ ADMIN_ID = 7983838654
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# ================= NUMBER GENERATORS =================
+# ====== TEMP STORAGE ======
+user_orders = {}
+
+# ====== NUMBER GENERATORS ======
 
 def generate_virtual_number():
     return "063" + "".join(str(random.randint(0, 9)) for _ in range(7))
@@ -26,69 +22,93 @@ def generate_virtual_number():
 def generate_vip_number():
     return "06349" + "".join(str(random.randint(0, 9)) for _ in range(5))
 
-# ================= START =================
+# ====== START ======
 
 @dp.message(Command("start"))
 async def start_handler(message: Message):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="VIRTUAL", callback_data="virtual")],
         [InlineKeyboardButton(text="CARD", callback_data="card")]
     ])
-    await message.answer("Ku soo dhawoow Telesom Bot", reply_markup=keyboard)
+    await message.answer("Ku soo dhawoow Telesom Bot", reply_markup=kb)
 
-# ================= VIRTUAL =================
+# ====== VIRTUAL ======
 
 @dp.callback_query(F.data == "virtual")
 async def virtual_menu(call: CallbackQuery):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="WHATSAPP", callback_data="whatsapp")],
         [InlineKeyboardButton(text="TIKTOK", callback_data="tiktok")],
         [InlineKeyboardButton(text="TELEGRAM", callback_data="telegram")],
         [InlineKeyboardButton(text="GOOGLE", callback_data="google")]
     ])
-    await call.message.edit_text("Dooro adeeg:", reply_markup=keyboard)
+    await call.message.edit_text("Dooro adeeg:", reply_markup=kb)
 
 @dp.callback_query(F.data.in_(["whatsapp", "tiktok", "telegram", "google"]))
-async def show_virtual_number(call: CallbackQuery):
+async def virtual_selected(call: CallbackQuery):
     number = generate_virtual_number()
-    keyboard = payment_keyboard()
-    await call.message.edit_text(
-        f"Number-kaaga:\n{number}\n\nQiimaha: $1\n\nPlease Send Money",
-        reply_markup=keyboard
-    )
-    await notify_admin(call.from_user.id, "Virtual", number)
 
-# ================= CARD =================
+    user_orders[call.from_user.id] = {
+        "type": "Virtual",
+        "number": number,
+        "price": "$1"
+    }
+
+    kb = payment_keyboard()
+    await call.message.edit_text(
+        f"Number-kaaga:\n{number}\n\n"
+        f"PLEASE SEND MONEY BEFORE\n"
+        f"AND GET YOUR VIRTUAL CARD 💵",
+        reply_markup=kb
+    )
+
+# ====== CARD ======
 
 @dp.callback_query(F.data == "card")
 async def card_menu(call: CallbackQuery):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="VIP", callback_data="vip")],
-        [InlineKeyboardButton(text="NORMAL", callback_data="normal")]
+        [InlineKeyboardButton(text="normal", callback_data="normal")]
     ])
-    await call.message.edit_text("Dooro nooca Card:", reply_markup=keyboard)
+    await call.message.edit_text("Dooro nooca Card:", reply_markup=kb)
 
 @dp.callback_query(F.data == "vip")
-async def vip_card(call: CallbackQuery):
+async def vip_selected(call: CallbackQuery):
     numbers = "\n".join(generate_vip_number() for _ in range(3))
-    keyboard = payment_keyboard()
+
+    user_orders[call.from_user.id] = {
+        "type": "VIP",
+        "number": numbers,
+        "price": "$15"
+    }
+
+    kb = payment_keyboard()
     await call.message.edit_text(
-        f"VIP Numbers:\n{numbers}\n\nQiimaha: $15\n\nPlease Send Money",
-        reply_markup=keyboard
+        f"VIP Numbers:\n{numbers}\n\n"
+        f"PLEASE SEND MONEY BEFORE\n"
+        f"AND GET YOUR VIP CARD 💵",
+        reply_markup=kb
     )
-    await notify_admin(call.from_user.id, "VIP", numbers)
 
 @dp.callback_query(F.data == "normal")
-async def normal_card(call: CallbackQuery):
+async def normal_selected(call: CallbackQuery):
     number = generate_virtual_number()
-    keyboard = payment_keyboard()
-    await call.message.edit_text(
-        f"Number-kaaga:\n{number}\n\nQiimaha: $1\n\nPlease Send Money",
-        reply_markup=keyboard
-    )
-    await notify_admin(call.from_user.id, "Normal Card", number)
 
-# ================= PAYMENT =================
+    user_orders[call.from_user.id] = {
+        "type": "Normal",
+        "number": number,
+        "price": "$1"
+    }
+
+    kb = payment_keyboard()
+    await call.message.edit_text(
+        f"Number-kaaga:\n{number}\n\n"
+        f"PLEASE SEND MONEY BEFORE\n"
+        f"AND GET YOUR NORMAL CARD 💵",
+        reply_markup=kb
+    )
+
+# ====== PAYMENT ======
 
 def payment_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -100,30 +120,27 @@ def payment_keyboard():
 async def local_payment(call: CallbackQuery):
     await call.message.answer("Fadlan lacag ku dir:\n+252907868526")
 
+    await send_admin_request(call.from_user.id)
+
 @dp.callback_query(F.data == "crypto")
 async def crypto_menu(call: CallbackQuery):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="USDT-BEP20", callback_data="usdt")],
         [InlineKeyboardButton(text="BNB", callback_data="bnb")]
     ])
-    await call.message.answer("Dooro Crypto:", reply_markup=keyboard)
+    await call.message.answer("Dooro Crypto:", reply_markup=kb)
 
-@dp.callback_query(F.data == "usdt")
-async def usdt_address(call: CallbackQuery):
-    await call.message.answer(
-        "USDT-BEP20 Address:\n0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
-    )
+    await send_admin_request(call.from_user.id)
 
-@dp.callback_query(F.data == "bnb")
-async def bnb_address(call: CallbackQuery):
-    await call.message.answer(
-        "BNB Address:\n0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
-    )
+# ====== ADMIN REQUEST ======
 
-# ================= ADMIN SYSTEM =================
+async def send_admin_request(user_id):
+    if user_id not in user_orders:
+        return
 
-async def notify_admin(user_id, order_type, number):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    order = user_orders[user_id]
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="CONFIRM", callback_data=f"confirm_{user_id}")],
         [InlineKeyboardButton(text="REJECT", callback_data=f"reject_{user_id}")],
         [InlineKeyboardButton(text="BAN", callback_data=f"ban_{user_id}")]
@@ -131,21 +148,27 @@ async def notify_admin(user_id, order_type, number):
 
     await bot.send_message(
         ADMIN_ID,
-        f"New Order\n\nUser ID: {user_id}\nType: {order_type}\nNumber(s):\n{number}",
-        reply_markup=keyboard
+        f"NEW ORDER\n\n"
+        f"User ID: {user_id}\n"
+        f"Type: {order['type']}\n"
+        f"Number:\n{order['number']}\n"
+        f"Price: {order['price']}",
+        reply_markup=kb
     )
+
+# ====== ADMIN ACTIONS ======
 
 @dp.callback_query(F.data.startswith("confirm_"))
 async def confirm_user(call: CallbackQuery):
     user_id = int(call.data.split("_")[1])
     await bot.send_message(user_id, "Payment Confirmed ✅")
-    await call.message.edit_text("Order Confirmed")
+    await call.message.edit_text("Confirmed")
 
 @dp.callback_query(F.data.startswith("reject_"))
 async def reject_user(call: CallbackQuery):
     user_id = int(call.data.split("_")[1])
     await bot.send_message(user_id, "Payment Rejected ❌")
-    await call.message.edit_text("Order Rejected")
+    await call.message.edit_text("Rejected")
 
 @dp.callback_query(F.data.startswith("ban_"))
 async def ban_user(call: CallbackQuery):
@@ -153,7 +176,7 @@ async def ban_user(call: CallbackQuery):
     await bot.send_message(user_id, "You are Banned ❌")
     await call.message.edit_text("User Banned")
 
-# ================= RUN BOT =================
+# ====== RUN ======
 
 async def main():
     await dp.start_polling(bot)
