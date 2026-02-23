@@ -10,6 +10,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN is missing in Railway Variables")
 ADMIN_ID = 7983838654
 
 bot = Bot(BOT_TOKEN)
