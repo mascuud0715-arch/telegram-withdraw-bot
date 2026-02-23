@@ -114,7 +114,6 @@ async def card(call: CallbackQuery):
     ])
     await call.message.edit_text("Dooro Card Type:", reply_markup=kb)
 
-
 @dp.callback_query(F.data.in_(["vip", "normal"]))
 async def card_type(call: CallbackQuery, state: FSMContext):
     number = vip_number() if call.data == "vip" else normal_number()
@@ -128,7 +127,6 @@ async def card_type(call: CallbackQuery, state: FSMContext):
     await call.message.answer("Fadlan geli Magacaaga Saddexan:")
     await state.set_state(CardState.full_name)
 
-
 # ================= MAGAC =================
 @dp.message(CardState.full_name)
 async def get_name(msg: Message, state: FSMContext):
@@ -140,14 +138,12 @@ async def get_name(msg: Message, state: FSMContext):
     await msg.answer("Geli Magaca Hooyada:")
     await state.set_state(CardState.mother)
 
-
 # ================= MOTHER =================
 @dp.message(CardState.mother)
 async def get_mother(msg: Message, state: FSMContext):
     users[msg.from_user.id]["mother"] = msg.text
     await msg.answer("Soo dir Sawirkaaga (Toosan oo cad):")
     await state.set_state(CardState.photo)
-
 
 # ================= PHOTO =================
 @dp.message(CardState.photo, F.photo)
@@ -161,44 +157,59 @@ async def get_photo(msg: Message, state: FSMContext):
 
     await msg.answer("Dooro Payment Method:", reply_markup=kb)
 
-
-# ================= LOCAL PAYMENT =================
+# ================= LOCAL PAYMENT WITH ANIMATION =================
 @dp.callback_query(F.data == "pay_local")
 async def pay_local(call: CallbackQuery):
+    number_to_send = "+252907868526"
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="CONFIRM", callback_data="confirm_pay")],
         [InlineKeyboardButton(text="CANCEL", callback_data="cancel")]
     ])
 
-    await call.message.edit_text(
-        "Numberkan Lacagta ku dir:\n+252907868526",
+    msg = await call.message.edit_text(
+        f"Numberkan Lacagta ku dir:\n{number_to_send}",
         reply_markup=kb
     )
 
-
-# ================= CRYPTO PAYMENT =================
-@dp.callback_query(F.data == "pay_crypto")
-async def pay_crypto(call: CallbackQuery):
-    text = (
-        "Send Crypto:\n\n"
-        "BNB:\n"
-        "`0x98ffcb29a4fc182d461ebdba54648d8fe24597ac`\n\n"
-        "USDT-BEP20:\n"
-        "`0x98ffcb29a4fc182d461ebdba54648d8fe24597ac`\n\n"
-        "Taabo address-ka si uu auto-copy u noqdo."
-    )
-
-    await call.message.edit_text(text)
-
-
-# ================= CONFIRM PAYMENT =================
+# ================= CONFIRM PAYMENT WITH LIVE CHECKING =================
 @dp.callback_query(F.data == "confirm_pay")
 async def confirm_pay(call: CallbackQuery, state: FSMContext):
+    msg = await call.message.edit_text("Checking Payment... ⏳")
+    
+    # Animation live
+    for dots in ["Checking.", "Checking..", "Checking...", "Checking...."]:
+        await asyncio.sleep(1)
+        await msg.edit_text(dots)
+    
+    # Kadib user-ka la weydiiyo screenshot
     await call.message.answer(
-        "Soo sawir Lacag bixintaada si loo xaqiijiyo (Screenshot Payment):"
+        "Fadlan soo dir Screenshot Payment si loo xaqiijiyo:"
     )
     await state.set_state(CardState.payment_screenshot)
 
+# ================= CRYPTO PAYMENT WITH COPY-FRIENDLY =================
+@dp.callback_query(F.data == "pay_crypto")
+async def pay_crypto(call: CallbackQuery):
+    bnb = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
+    usdt = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
+
+    text = (
+        "Send Crypto:\n\n"
+        f"BNB:\n`{bnb}`\n\n"
+        f"USDT-BEP20:\n`{usdt}`\n\n"
+        "Taabo address-ka si uu auto-copy u noqdo."
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="BNB COPY", url=f"tg://msg?text={bnb}")],
+        [InlineKeyboardButton(text="USDT COPY", url=f"tg://msg?text={usdt}")]
+    ])
+
+    msg = await call.message.edit_text(text, parse_mode="Markdown")
+    
+    # 5 sec countdown reminder
+    await countdown(msg, "Haddii aadan dirin lacagta, waxaad heli doontaa reminder!", sec=5)
 
 # ================= SCREENSHOT =================
 @dp.message(CardState.payment_screenshot, F.photo)
@@ -214,7 +225,6 @@ async def receive_screenshot(msg: Message, state: FSMContext):
 async def cancel(call: CallbackQuery):
     await call.message.edit_text("Order Cancelled ❌")
 
-
 # ================= ADMIN APPROVE =================
 @dp.callback_query(F.data.startswith("approve_"))
 async def approve(call: CallbackQuery):
@@ -227,26 +237,20 @@ async def approve(call: CallbackQuery):
     code = generate_code()
     users[uid]["code"] = code
 
-    # Haddii Card yahay → dir xogta user-ka
     if users[uid]["type"] == "card":
         data = users[uid]
-
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
                 text="CHECK CODE",
                 callback_data="go_check"
             )]
         ])
-
         await bot.send_message(
             uid,
-            f"Payment Confirmed ✅\n\n"
-            f"Code-kan ku qor CHECK CODE:\n\n"
-            f"{code}",
+            f"Payment Confirmed ✅\n\nCode-kan ku qor CHECK CODE:\n\n{code}",
             reply_markup=kb
         )
 
-    # Haddii Virtual yahay
     if users[uid]["type"] == "virtual":
         await bot.send_message(
             uid,
@@ -255,27 +259,18 @@ async def approve(call: CallbackQuery):
 
     await call.message.edit_text("Approved ✅")
 
-
-# ================= ADMIN REJECT =================
+# ================= ADMIN REJECT + AUTO REMINDER =================
 @dp.callback_query(F.data.startswith("reject_"))
 async def reject(call: CallbackQuery):
     uid = int(call.data.split("_")[1])
 
     if uid in users:
-        await bot.send_message(uid, "Codsigaaga waa la diiday ❌")
-
-    await call.message.edit_text("Rejected ❌")
-
-
-# ================= AUTO 5 SEC WARNING =================
-async def auto_warning(uid, message):
-    await asyncio.sleep(5)
-    if uid in users and "code" not in users[uid]:
-        await bot.send_message(
-            uid,
-            "PLEASE SEND MONEY 💵\n+252907868526"
+        await bot.send_message(uid,
+            "Codsigaaga waa la diiday ❌\n\n"
+            "Fadlan Lacagta ku dir Numberkan si loo xaqiijiyo:\n+252907868526"
         )
 
+    await call.message.edit_text("Rejected ❌")
 
 # ================= CHECK CODE BUTTON =================
 @dp.callback_query(F.data == "go_check")
@@ -283,13 +278,11 @@ async def go_check(call: CallbackQuery, state: FSMContext):
     await call.message.answer("Geli Code-kaaga:")
     await state.set_state(CodeState.code)
 
-
 # ================= CHECK CODE MENU =================
 @dp.message(F.text == "Check Code")
 async def check_code_menu(msg: Message, state: FSMContext):
     await msg.answer("Geli Code-kaaga:")
     await state.set_state(CodeState.code)
-
 
 @dp.message(CodeState.code)
 async def check_code_process(msg: Message, state: FSMContext):
@@ -307,7 +300,6 @@ async def check_code_process(msg: Message, state: FSMContext):
         await msg.answer("Ma jiro Card la helay.")
 
     await state.clear()
-
 
 # ================= ADMIN RECEIVES FULL CARD INFO =================
 @dp.message()
@@ -348,7 +340,6 @@ async def forward_card_to_admin(msg: Message):
                 data["screenshot"],
                 caption="Payment Screenshot"
             )
-
 
 # ================= MAIN RUN =================
 async def main():
