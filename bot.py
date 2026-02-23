@@ -60,6 +60,11 @@ async def new_order(msg: Message):
     ])
     await msg.answer("Dooro nooca order-ka:", reply_markup=kb)
 
+# ===== CHECK CODE =====
+@dp.message(lambda message: message.text == "Check Code")
+async def check_code(msg: Message):
+    await msg.answer("Fadlan gali code-kaaga si loo hubiyo.")
+
 # ===== VIRTUAL =====
 @dp.callback_query(F.data=="virtual")
 async def virtual(call: types.CallbackQuery):
