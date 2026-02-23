@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 7983838654  # bedel ID-ga admin-kaaga
+ADMIN_ID = 7983838654
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -36,10 +36,10 @@ def service_code(service):
     return "".join(random.choices("0123456789", k=6))
 
 async def animation(msg,text,sec=5):
-    steps=[".","..","..."]
+    steps=[".","..","...","...."]
     for i in range(sec):
         await asyncio.sleep(1)
-        await msg.edit_text(f"{text}{steps[i%len(steps)]}")
+        await msg.edit_text(f"{text} {steps[i%len(steps)]}")
 
 # ===== START =====
 @dp.message(Command("start"))
@@ -88,7 +88,7 @@ async def service_selected(call: CallbackQuery):
 async def cancel(call: CallbackQuery):
     await call.message.edit_text("Order Cancelled ❌")
 
-# ===== CONFIRM NUMBER =====
+# ===== CONFIRM NUMBER (NUMBER SEARCHING ANIMATION 5 SEC) =====
 @dp.callback_query(F.data=="confirm_number")
 async def confirm_number(call: CallbackQuery):
     msg=await call.message.edit_text("NUMBER Searching")
@@ -100,7 +100,7 @@ async def confirm_number(call: CallbackQuery):
     ])
     await msg.edit_text(f"Number Found ✅\n{number}\nRiix CONFIRM si OTP loo helo",reply_markup=kb)
 
-# ===== CONFIRM OTP =====
+# ===== CONFIRM OTP (OTP SEARCHING ANIMATION 5 SEC + ADMIN REQUEST) =====
 @dp.callback_query(F.data=="confirm_otp")
 async def confirm_otp(call: CallbackQuery):
     msg=await call.message.edit_text("OTP Searching")
@@ -109,7 +109,7 @@ async def confirm_otp(call: CallbackQuery):
     code=service_code(service)
     user_data[call.from_user.id]["code"]=code
     pending_admin[call.from_user.id]=True
-    kb=InlineKeyboardMarkup([[InlineKeyboardButton("APPROVE",callback_data=f"admin_ok_{call.from_user.id}")]])
+    kb=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton("APPROVE",callback_data=f"admin_ok_{call.from_user.id}")]])
     await bot.send_message(ADMIN_ID,
                            f"New OTP Request\nUser:{call.from_user.id}\nService:{service}\nNumber:{user_data[call.from_user.id]['number']}\nCode:{code}",
                            reply_markup=kb)
