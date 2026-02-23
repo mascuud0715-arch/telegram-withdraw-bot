@@ -1,1 +1,1 @@
-pip show aiogram
+aiogram==3.1.1
