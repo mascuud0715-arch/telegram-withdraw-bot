@@ -199,7 +199,7 @@ async def cancel(call: CallbackQuery):
 
 # ================= CRYPTO PAYMENT ===================
 @dp.callback_query(F.data == "pay_crypto" or F.data == "v_pay_crypto")
-async def pay_crypto(call: CallbackQuery):
+async def pay_crypto(call: CallbackQuery, state: FSMContext):
     bnb = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
     usdt = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
 
@@ -210,17 +210,42 @@ async def pay_crypto(call: CallbackQuery):
         "Taabo address-ka si uu auto-copy u noqdo."
     )
 
+    # Inline buttons: CONFIRM / CANCEL
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="BNB COPY", url=f"tg://msg?text={bnb}")],
-        [InlineKeyboardButton(text="USDT COPY", url=f"tg://msg?text={usdt}")]
+        [InlineKeyboardButton(text="CONFIRM", callback_data="crypto_confirm")],
+        [InlineKeyboardButton(text="CANCEL", callback_data="crypto_cancel")]
     ])
 
     msg = await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
-    
+
     # 5 sec countdown animation
     for i in range(5, 0, -1):
         await asyncio.sleep(1)
         await msg.edit_text(f"{text}\n⏳ {i} sec", parse_mode="Markdown", reply_markup=kb)
+
+# ================= CONFIRM / CANCEL ===================
+@dp.callback_query(F.data == "crypto_confirm")
+async def crypto_confirm(call: CallbackQuery):
+    uid = call.from_user.id
+    code = generate_code()
+    users[uid]["code"] = code
+
+    otp_msg = await call.message.edit_text(f"OTP....")
+
+    # Live OTP animation
+    for step in ["OTP Generating.", "OTP Generating..", "OTP Generating...", "OTP Ready!"]:
+        await asyncio.sleep(1)
+        await otp_msg.edit_text(f"{step}\nNumber: {users[uid]['number']}\nCode: {code}")
+
+    # Kadib 5 sec fariin cusub u dir user
+    await asyncio.sleep(5)
+    await call.message.answer(
+        f"Fadlan lacagta soo dir si dalabkaaga loo xaqiijiyo 💵\nNumber: +252907868526"
+    )
+
+@dp.callback_query(F.data == "crypto_cancel")
+async def crypto_cancel(call: CallbackQuery):
+    await call.message.edit_text("Payment Cancelled ❌")
 
 # ================= SCREENSHOT TO ADMIN =================
 @dp.message(CardState.payment_screenshot, F.photo)
