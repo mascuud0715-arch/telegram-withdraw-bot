@@ -55,6 +55,8 @@ def payment_keyboard(local=True, crypto=True):
         kb.inline_keyboard.append([InlineKeyboardButton("CRYPTO", callback_data="pay_crypto")])
     return kb
 
+from aiogram.filters import Text
+
 # ================= START =================
 @dp.message(Command("start"))
 async def start(msg: Message):
@@ -65,7 +67,7 @@ async def start(msg: Message):
     await msg.answer("Ku soo dhawoow Service Bot 🤖", reply_markup=kb)
 
 # ================= NEW ORDER =================
-@dp.message(F.text=="New Order")
+@dp.message(Text(equals="New Order"))
 async def new_order(msg: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton("VIRTUAL ($0.8)", callback_data="virtual")],
