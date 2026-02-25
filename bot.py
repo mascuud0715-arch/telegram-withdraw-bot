@@ -45,11 +45,17 @@ async def live_animation(msg: Message, text="Checking", seconds=5):
         await asyncio.sleep(1)
         await msg.edit_text(f"{text}{dots}")
 
-# ================= START =================
+def generate_referral_code():
+    return "".join(str(random.randint(0, 9)) for _ in range(8))
+
+# ================= START ==================
 @dp.message(Command("start"))
 async def start(msg: Message):
     kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="New Order")]],
+        keyboard=[
+            [KeyboardButton(text="New Order")],
+            [KeyboardButton(text="Customer")]
+        ],
         resize_keyboard=True
     )
     await msg.answer("Ku soo dhawoow Service Bot 🤖", reply_markup=kb)
@@ -62,6 +68,49 @@ async def new_order(msg: Message):
         [InlineKeyboardButton(text="CARD", callback_data="card_start")]
     ])
     await msg.answer("Dooro adeeg:", reply_markup=kb)
+
+
+# ================= COSTUMER =================
+@dp.message(F.text == "Customer")
+async def customer_support(msg: Message):
+    await msg.answer(
+        "Customer Support 👇\n\n"
+        "Fadlan la xiriir:\n"
+        "@scholes1"
+    )
+
+# ================= REFERAL =================
+@dp.message(Command("start"))
+async def start(msg: Message):
+    # Haddii user cusub yahay
+    uid = msg.from_user.id
+    if uid not in users:
+        referral_code = generate_referral_code()
+        users[uid] = {
+            "balance": 0.0,
+            "referral_code": referral_code,
+            "referrals": []
+        }
+
+    # Check haddii user uu soo galay link referral
+    # URL: /start <referral_code>
+    args = msg.get_args()  # Aiogram 3.x
+    if args:
+        ref_code = args.strip()
+        # Hel user-kii code-ka lahaa
+        for user_id, data in users.items():
+            if data["referral_code"] == ref_code:
+                if uid not in data["referrals"]:
+                    data["referrals"].append(uid)
+                    data["balance"] += 0.6  # Auto credit
+                    await bot.send_message(user_id, f"🎉 Qof cusub ayaa ku soo biiray adiga! $0.6 ayaa lagu daray balance-kaaga.")
+                break
+
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="New Order")]],
+        resize_keyboard=True
+    )
+    await msg.answer(f"Ku soo dhawoow Service Bot 🤖\nYour Referral Code: {users[uid]['referral_code']}\nBalance: ${users[uid]['balance']:.2f}", reply_markup=kb)
 
 # ================== VIRTUAL FLOW =================
 @dp.callback_query(F.data == "virtual_start")
