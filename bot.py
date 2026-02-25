@@ -3,7 +3,7 @@ import asyncio
 import random
 import logging
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import *
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
@@ -13,7 +13,6 @@ from aiogram.client.default import DefaultBotProperties
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 7983838654
-bot = Bot(BOT_TOKEN, parse_mode="HTML")
 
 LOCAL_NUMBER = "+252907868526"
 BNB_ADDRESS = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
@@ -33,9 +32,6 @@ class VirtualState(StatesGroup):
 class CardState(StatesGroup):
     screenshot = State()
 
-class WithdrawState(StatesGroup):
-    waiting_request = State()
-
 # ================= HELPERS =================
 def random_number():
     return "+25263" + "".join(str(random.randint(0,9)) for _ in range(7))
@@ -43,54 +39,20 @@ def random_number():
 def generate_otp():
     return "".join(random.choices("0123456789", k=6))
 
-def generate_referral_code():
-    return "".join(str(random.randint(0, 9)) for _ in range(8))
-
 async def live_animation(msg: Message, text="Checking", seconds=5):
     for i in range(seconds):
         dots = "." * (i % 4)
         await asyncio.sleep(1)
         await msg.edit_text(f"{text}{dots}")
 
-# ================= START ==================
+# ================= START =================
 @dp.message(Command("start"))
 async def start(msg: Message):
-    uid = msg.from_user.id
-    args = msg.get_args()
-
-    # Haddii user cusub yahay
-    if uid not in users:
-        referral_code = generate_referral_code()
-        users[uid] = {
-            "balance": 0.0,
-            "referral_code": referral_code,
-            "referrals": []
-        }
-
-    # Referral processing
-    if args:
-        ref_code = args.strip()
-        for user_id, data in users.items():
-            if data["referral_code"] == ref_code:
-                if uid not in data["referrals"]:
-                    data["referrals"].append(uid)
-                    data["balance"] += 0.6
-                    await bot.send_message(user_id, f"🎉 Qof cusub ayaa ku soo biiray adiga! $0.6 ayaa lagu daray balance-kaaga.")
-                break
-
-    # Reply keyboard
     kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="New Order"), KeyboardButton(text="Customer")],
-            [KeyboardButton(text="Withdraw")]
-        ],
+        keyboard=[[KeyboardButton(text="New Order")]],
         resize_keyboard=True
     )
-
-    await msg.answer(
-        f"Ku soo dhawoow Service Bot 🤖\nYour Referral Code: {users[uid]['referral_code']}\nBalance: ${users[uid]['balance']:.2f}",
-        reply_markup=kb
-    )
+    await msg.answer("Ku soo dhawoow Service Bot 🤖", reply_markup=kb)
 
 # ================= NEW ORDER =================
 @dp.message(F.text == "New Order")
@@ -101,17 +63,7 @@ async def new_order(msg: Message):
     ])
     await msg.answer("Dooro adeeg:", reply_markup=kb)
 
-
-# ================= CUSTOMER SUPPORT =================
-@dp.message(F.text == "Customer")
-async def customer_support(msg: Message):
-    await msg.answer(
-        "Customer Support 👇\n\n"
-        "Fadlan la xiriir:\n"
-        "@scholes1"
-    )
-
-# ================= VIRTUAL FLOW START =================
+# ================== VIRTUAL FLOW =================
 @dp.callback_query(F.data == "virtual_start")
 async def virtual_platform(call: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -121,8 +73,6 @@ async def virtual_platform(call: CallbackQuery):
     ])
     await call.message.edit_text("Dooro Platform:", reply_markup=kb)
 
-
-# ================= VIRTUAL PLATFORM SELECTED =================
 @dp.callback_query(F.data.startswith("v_platform_"))
 async def virtual_platform_selected(call: CallbackQuery):
     platform = call.data.split("_")[2]
@@ -161,8 +111,7 @@ async def virtual_local_payment(call: CallbackQuery):
         reply_markup=kb
     )
 
-
-# ================= CONFIRM LOCAL PAYMENT =================
+# ================= CONFIRM LOCAL =================
 @dp.callback_query(F.data.startswith("v_confirm_payment_"))
 async def confirm_virtual_payment(call: CallbackQuery, state: FSMContext):
     msg = await call.message.edit_text("Checking...")
@@ -170,7 +119,6 @@ async def confirm_virtual_payment(call: CallbackQuery, state: FSMContext):
 
     await call.message.answer("Soo dir Screenshot-ka Payment-ka")
     await state.set_state(VirtualState.waiting_screenshot)
-
 
 # ================= RECEIVE VIRTUAL SCREENSHOT =================
 @dp.message(StateFilter(VirtualState.waiting_screenshot), F.photo)
@@ -200,7 +148,6 @@ async def receive_virtual_screenshot(msg: Message, state: FSMContext):
     await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb_admin)
     await state.clear()
 
-
 # ================= VIRTUAL CRYPTO PAYMENT =================
 @dp.callback_query(F.data == "v_payment_crypto")
 async def virtual_crypto_payment(call: CallbackQuery):
@@ -222,7 +169,7 @@ async def virtual_crypto_payment(call: CallbackQuery):
     await call.message.edit_text(text, reply_markup=kb)
 
 
-# ================= CONFIRM CRYPTO PAYMENT =================
+# ================= CONFIRM CRYPTO =================
 @dp.callback_query(F.data.startswith("v_crypto_confirm_"))
 async def confirm_crypto(call: CallbackQuery, state: FSMContext):
     msg = await call.message.edit_text("Checking Crypto Payment...")
@@ -230,6 +177,7 @@ async def confirm_crypto(call: CallbackQuery, state: FSMContext):
 
     await call.message.answer("Soo dir Screenshot-ka Crypto Payment-ka")
     await state.set_state(VirtualState.waiting_screenshot)
+
 
 # ================= ADMIN CONFIRM =================
 @dp.callback_query(F.data.startswith("admin_confirm_"))
@@ -323,7 +271,7 @@ async def check_again(call: CallbackQuery):
 
     await msg.edit_text(f"NEW OTP:\n\n<code>{new_otp}</code>", reply_markup=kb)
 
-    # Haddii user 2 jeer codsado OTP, admin la socodsii
+    # haddii 2 jeer la codsado
     if users[uid]["otp_requests"] == 2:
         kb_admin = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="CONFIRM FINAL OTP", callback_data=f"admin_final_confirm_{uid}")]
@@ -515,8 +463,7 @@ async def admin_card_ask(call: CallbackQuery):
 
     await call.message.edit_caption("⚠️ ADMIN REQUESTED USER")
 
-
-# ================= MAIN POLLING =================
+# ================= MAIN =================
 async def main():
     await dp.start_polling(bot)
 
