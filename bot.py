@@ -115,7 +115,7 @@ async def virtual_platform_selected(call: CallbackQuery):
 
     # ================== VIRTUAL LOCAL PAYMENT ===================
 
-@dp.callback_query(F.data == "v_payment_local")
+@dp.callback_query(F.data == "v_payment_local")],
 async def virtual_local_payment(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
     if uid not in users:
