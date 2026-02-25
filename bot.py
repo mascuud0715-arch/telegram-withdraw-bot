@@ -118,8 +118,12 @@ async def virtual_confirm_payment(call: CallbackQuery, state: FSMContext):
     await state.set_state(VirtualState.waiting_screenshot)
 
 # ================= RECEIVE SCREENSHOT =================
-@dp.message(VirtualState.waiting_screenshot, F.photo)
+@dp.message(F.photo)
 async def virtual_receive_screenshot(msg: Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state != VirtualState.waiting_screenshot:
+        return  # Ignore messages outside the expected state
+
     uid = msg.from_user.id
     data = users.get(uid)
     if not data:
@@ -128,8 +132,6 @@ async def virtual_receive_screenshot(msg: Message, state: FSMContext):
         return
 
     users[uid]["screenshot"] = msg.photo[-1].file_id
-
-    # Notify user
     await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
 
     # Inline buttons for admin
@@ -148,10 +150,7 @@ async def virtual_receive_screenshot(msg: Message, state: FSMContext):
         f"Number: {data['number']}\n"
         f"Payment Type: LOCAL"
     )
-
-    # Send screenshot to admin
     await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb_admin)
-
     await state.clear()
 
 # ================= ADMIN ACTIONS =================
@@ -306,8 +305,12 @@ async def card_confirm_payment(call: CallbackQuery, state: FSMContext):
     await state.set_state(CardState.screenshot)
 
 # -------- RECEIVE CARD SCREENSHOT --------
-@dp.message(CardState.screenshot, F.photo)
+@dp.message(F.photo)
 async def card_receive_screenshot(msg: Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state != CardState.screenshot:
+        return  # Ignore messages outside the expected state
+
     uid = msg.from_user.id
     data = await state.get_data()
     await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
