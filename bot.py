@@ -297,18 +297,40 @@ async def virtual_crypto_receive(msg: Message, state: FSMContext):
 # ================= CARD PAYMENT FLOW (LOCAL + CRYPTO) =================
 @dp.message(F.photo, state=VirtualState.waiting_screenshot)
 async def virtual_receive_screenshot(msg: Message, state: FSMContext):
-    ...
-    uid = call.from_user.id
-    data = await state.get_data()
-    if call.data == "card_pay_local":
-        text = f"NUMBERKAN LACAGTA KU DIR\n{data['price']}\n{LOCAL_NUMBER}"
-    else:
-        text = f"USDT: <code>{USDT_ADDRESS}</code>\nBNB: <code>{BNB_ADDRESS}</code>"
+    uid = msg.from_user.id
+    data = users.get(uid)
+    if not data:
+        await msg.answer("❌ Dalabka lama helin. Fadlan bilow order cusub.")
+        await state.clear()
+        return
 
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(text="CONFIRM", callback_data=f"card_confirm_payment_{uid}")]
+    # Save screenshot
+    users[uid]["screenshot"] = msg.photo[-1].file_id
+
+    # Notify user
+    await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
+
+    # Inline buttons for admin
+    kb_admin = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_confirm_{uid}"),
+            InlineKeyboardButton(text="REJECT", callback_data=f"admin_reject_{uid}"),
+            InlineKeyboardButton(text="OTP", callback_data=f"admin_otp_{uid}")
+        ]
     ])
-    await call.message.edit_text(text, reply_markup=kb)
+
+    caption = (
+        f"New Virtual Order\n"
+        f"User: {uid}\n"
+        f"Platform: {data['platform']}\n"
+        f"Number: {data['number']}\n"
+        f"Payment Type: LOCAL"
+    )
+
+    # Send screenshot to admin
+    await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb_admin)
+
+    await state.clear()
 
 # -------- CARD CONFIRM PAYMENT --------
 @dp.callback_query(F.data.startswith("card_confirm_payment_"))
