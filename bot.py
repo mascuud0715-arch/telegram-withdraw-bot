@@ -74,7 +74,7 @@ async def virtual_platform(call: CallbackQuery):
 @dp.callback_query(F.data.startswith("v_platform_"))
 async def virtual_platform_selected(call: CallbackQuery):
     platform = call.data.split("_")[2]
-    number = random_number()
+    number = random_number(7)
     users[call.from_user.id] = {
         "type": "virtual",
         "platform": platform,
