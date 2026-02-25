@@ -115,37 +115,63 @@ async def virtual_platform_selected(call: CallbackQuery):
     )
 
 
-# ================== VIRTUAL LOCAL PAYMENT FULLY AUTOMATED ===================
+# ================== VIRTUAL LOCAL PAYMENT ===================
 
-# Local payment button
+# Platform selection
+@dp.callback_query(F.data == "virtual_start")
+async def virtual_platform(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=p, callback_data=f"v_{p}") for p in ["WhatsApp", "Instagram", "Telegram"]],
+        [InlineKeyboardButton(text=p, callback_data=f"v_{p}") for p in ["Google", "TikTok", "Facebook"]]
+    ])
+    await call.message.edit_text("Dooro Platform:", reply_markup=kb)
+
+# Platform selected
+@dp.callback_query(F.data.startswith("v_"))
+async def virtual_selected(call: CallbackQuery):
+    platform = call.data.split("_")[1]
+    number = "+25263" + "".join(str(random.randint(0,9)) for _ in range(7))
+    users[call.from_user.id] = {
+        "type": "virtual",
+        "platform": platform,
+        "number": number,
+        "price": "$0.8"
+    }
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="LOCAL", callback_data="v_payment_local")],
+        [InlineKeyboardButton(text="CRYPTO", callback_data="v_payment_crypto")]
+    ])
+    await call.message.edit_text(
+        f"Number: {number}\nQiimaha: $0.8\n\nDooro Payment:",
+        reply_markup=kb
+    )
+
+# -------- LOCAL PAYMENT --------
 @dp.callback_query(F.data == "v_payment_local")
 async def virtual_local(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
     number = users[uid]["number"]
 
-    # Inline CONFIRM button
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="CONFIRM", callback_data="v_confirm_payment")]
     ])
-
     await call.message.edit_text(
-        f"Fadlan lacagta ku dir lambarkan:\n\n{LOCAL_NUMBER}\n\n"
-        f"Lambarkaaga: {number}",
+        f"Fadlan lacagta ku dir lambarkan:\n\n+252907868526\nLambarkaaga: {number}",
         reply_markup=kb
     )
 
-
-# User click CONFIRM → animation + ask for screenshot
+# CONFIRM → Checking animation → ask for screenshot
 @dp.callback_query(F.data == "v_confirm_payment")
 async def virtual_confirm_payment(call: CallbackQuery, state: FSMContext):
     msg = await call.message.edit_text("Checking...")
-    await animation(msg, "Checking", 5)
-
+    for i in range(5):
+        await asyncio.sleep(1)
+        await msg.edit_text(f"Checking{'.'* (i%4)}")
     await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (PAYMENT)")
     await state.set_state(VirtualState.waiting_screenshot)
 
-
-# Receive screenshot from user → send to admin with inline buttons
+# Receive screenshot → send to admin
 @dp.message(VirtualState.waiting_screenshot, F.photo)
 async def virtual_receive_screenshot(msg: Message, state: FSMContext):
     uid = msg.from_user.id
@@ -156,34 +182,19 @@ async def virtual_receive_screenshot(msg: Message, state: FSMContext):
         return
 
     users[uid]["screenshot"] = msg.photo[-1].file_id
-
-    # Inline buttons for admin: CONFIRM / REJECT / OTP
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+    kb = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_confirm_{uid}"),
             InlineKeyboardButton(text="REJECT", callback_data=f"admin_reject_{uid}"),
             InlineKeyboardButton(text="OTP", callback_data=f"admin_otp_{uid}")
         ]
     ])
-
     caption = (
-        f"New Virtual Order\n\n"
-        f"User: {uid}\n"
-        f"Platform: {data['platform']}\n"
-        f"Number: {data['number']}\n"
-        f"Payment Type: LOCAL"
+        f"New Virtual Order\nUser: {uid}\nNumber: {data['number']}\nPlatform: {data['platform']}\nPayment Type: LOCAL"
     )
-
-    await bot.send_photo(
-        ADMIN_ID,
-        msg.photo[-1].file_id,
-        caption=caption,
-        reply_markup=kb
-    )
-
+    await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb)
     await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
     await state.clear()
-
 
 # Admin CONFIRM → notify user
 @dp.callback_query(F.data.startswith("admin_confirm_"))
@@ -192,7 +203,6 @@ async def admin_confirm_virtual(call: CallbackQuery):
     await bot.send_message(uid, "✅ Lacagta waa la xaqiijiyay. Adeeggaaga waa la diyaariyey.")
     await call.message.edit_caption("✅ PAYMENT CONFIRMED")
 
-
 # Admin REJECT → notify user
 @dp.callback_query(F.data.startswith("admin_reject_"))
 async def admin_reject_virtual(call: CallbackQuery):
@@ -200,34 +210,53 @@ async def admin_reject_virtual(call: CallbackQuery):
     await bot.send_message(uid, "❌ Payment lama xaqiijin. Fadlan lacagta dib u soo dir.")
     await call.message.edit_caption("❌ PAYMENT REJECTED")
 
-
-# Admin OTP → bot generates OTP and sends to user
+# Admin OTP → bot generates hidden OTP → user inline
 @dp.callback_query(F.data.startswith("admin_otp_"))
 async def admin_send_otp_virtual(call: CallbackQuery):
     uid = int(call.data.split("_")[2])
     otp = generate_otp()
     users[uid]["otp"] = otp
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"OTP: {otp}"
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(text="SHOW OTP", callback_data="show_otp_user")]
     ])
-
     await bot.send_message(
         uid,
         f"Number: {users[uid]['number']}\nPlatform: {users[uid]['platform']}\n\nPAYMENT: PAID ✅",
         reply_markup=kb
     )
-    await call.message.edit_caption(f"OTP Sent to user: {otp}")
+    await call.message.edit_caption("OTP sent to user (hidden from admin)")
 
-
-# User clicks inline OTP → animation live
-@dp.callback_query(F.data == "show_otp")
-async def show_otp_animation(call: CallbackQuery):
+# User clicks SHOW OTP → animation live → OTP
+@dp.callback_query(F.data == "show_otp_user")
+async def show_otp_user(call: CallbackQuery):
     uid = call.from_user.id
     otp = users[uid].get("otp")
+    if not otp:
+        await call.message.edit_text("❌ OTP lama helin, fadlan la xiriir admin.")
+        return
     msg = await call.message.edit_text("OTP Loading...")
-    await animation(msg, "OTP", 5)
-    await call.message.edit_text(f"Your OTP Code:\n\n{otp}")
+    for i in range(5):
+        await asyncio.sleep(1)
+        await msg.edit_text(f"OTP{'.'* (i%4)}")
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(text="CHECK AGAIN", callback_data="check_again_otp")]
+    ])
+    await msg.edit_text(f"Your OTP Code:\n\n{otp}", reply_markup=kb)
+
+# User click CHECK AGAIN → new OTP
+@dp.callback_query(F.data == "check_again_otp")
+async def check_again_otp(call: CallbackQuery):
+    uid = call.from_user.id
+    new_otp = generate_otp()
+    users[uid]["otp"] = new_otp
+    msg = await call.message.edit_text("Generating new OTP...")
+    for i in range(5):
+        await asyncio.sleep(1)
+        await msg.edit_text(f"OTP{'.'* (i%4)}")
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(text="CHECK AGAIN", callback_data="check_again_otp")]
+    ])
+    await msg.edit_text(f"Your NEW OTP Code:\n\n{new_otp}", reply_markup=kb)
 
 
 # -------- CRYPTO PAYMENT --------
