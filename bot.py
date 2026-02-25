@@ -59,7 +59,7 @@ async def live_animation(msg: Message, text="Checking", seconds=5):
 async def start(msg: Message):
     uid = msg.from_user.id
 
-    # User cusub
+    # Haddii user cusub yahay
     if uid not in users:
         referral_code = generate_referral_code()
         users[uid] = {
@@ -68,28 +68,30 @@ async def start(msg: Message):
             "referrals": []
         }
 
-    # Haddii user uu soo galay link referral
+    # Haddii uu jiro referral code
     args = msg.get_args()
     if args:
         ref_code = args.strip()
         for user_id, data in users.items():
-            if data["referral_code"] == ref_code:
-                if uid not in data["referrals"]:
-                    data["referrals"].append(uid)
-                    data["balance"] += 0.6
-                    await bot.send_message(user_id, f"🎉 Qof cusub ayaa ku soo biiray adiga! $0.6 ayaa lagu daray balance-kaaga.")
+            if data["referral_code"] == ref_code and uid not in data["referrals"]:
+                data["referrals"].append(uid)
+                data["balance"] += 0.6
+                await bot.send_message(user_id, f"🎉 Qof cusub ayaa ku soo biiray adiga! $0.6 ayaa lagu daray balance-kaaga.")
                 break
 
     kb = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="New Order"), KeyboardButton(text="Customer")],
-            [KeyboardButton(text="Withdraw")]
+            [KeyboardButton(text="Balance"), KeyboardButton(text="Referral")],
+            [KeyboardButton(text="Withdrawal")]
         ],
         resize_keyboard=True
     )
 
     await msg.answer(
-        f"Ku soo dhawoow Service Bot 🤖\nYour Referral Code: {users[uid]['referral_code']}\nBalance: ${users[uid]['balance']:.2f}",
+        f"Ku soo dhawoow Service Bot 🤖\n\n"
+        f"Your Referral Code: {users[uid]['referral_code']}\n"
+        f"Balance: ${users[uid]['balance']:.2f}",
         reply_markup=kb
     )
 
