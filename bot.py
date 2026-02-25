@@ -38,7 +38,7 @@ class CardState(StatesGroup):
 # ================= HELPERS =================
 
 def random_number():
-return "+25263" + "".join(str(random.randint(0,9)) for _ in range(7))
+return "Rondom" + "".join(str(random.randint(0,9)) for _ in range(7))
 
 def generate_otp():
 return "".join(random.choices("0123456789", k=6))
