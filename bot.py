@@ -597,3 +597,11 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# ================= RUN =================
+async def main():
+    print("Bot-ka wuu bilaabanayaa...")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
