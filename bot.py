@@ -114,7 +114,9 @@ async def virtual_platform_selected(call: CallbackQuery):
         reply_markup=kb
     )
 
-# ======= VIRTUAL LOCAL PAYMENT =======
+# ======= VIRTUAL PAYMENT SYSTEM FULL =======
+
+# Local Payment Inline
 @dp.callback_query(F.data == "v_payment_local")
 async def virtual_local(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
@@ -126,20 +128,22 @@ async def virtual_local(call: CallbackQuery, state: FSMContext):
     ])
 
     await call.message.edit_text(
-        f"Fadlan lacagta ku dir lambarkan:\n{LOCAL_NUMBER}\nLambarkaaga: {users[uid]['number']}",
+        f"Fadlan lacagta ku dir lambarkan (LOCAL):\n<code>{LOCAL_NUMBER}</code>\nLambarkaaga: {users[uid]['number']}",
         reply_markup=kb
     )
 
-# CONFIRM clicked → animation → request screenshot
+# Confirm Local Payment → Animation → Request Screenshot
 @dp.callback_query(F.data.startswith("v_confirm_local_"))
 async def virtual_confirm_local(call: CallbackQuery, state: FSMContext):
     uid = int(call.data.split("_")[-1])
     msg = await call.message.edit_text("Checking payment...")
-    await live_animation(msg, "Checking", 5)
+    for i in range(5):
+        await asyncio.sleep(1)
+        await msg.edit_text(f"Checking{'.'* (i%4)}")
     await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (PAYMENT).")
     await state.set_state(VirtualState.waiting_screenshot)
 
-# User sends screenshot → admin receives
+# Receive Screenshot → Send to Admin
 @dp.message(VirtualState.waiting_screenshot, F.photo)
 async def virtual_local_screenshot(msg: Message, state: FSMContext):
     uid = msg.from_user.id
@@ -170,30 +174,27 @@ async def virtual_local_screenshot(msg: Message, state: FSMContext):
     await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb)
     await state.clear()
 
-# ================== VIRTUAL CRYPTO PAYMENT ===================
-
+# ======= CRYPTO PAYMENT INLINE =======
 @dp.callback_query(F.data == "v_payment_crypto")
-async def virtual_crypto_payment(call: CallbackQuery, state: FSMContext):
+async def virtual_crypto(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
-    if uid not in users:
-        await call.message.answer("❌ Dalabka lama helin. Fadlan bilow order cusub.")
-        return
-
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(text="CONFIRM", callback_data=f"v_confirm_crypto_{uid}")]
+        [InlineKeyboardButton("CONFIRM", callback_data=f"v_confirm_crypto_{uid}")]
     ])
     await call.message.edit_text(
         f"USDT:\n<code>{USDT_ADDRESS}</code>\nBNB:\n<code>{BNB_ADDRESS}</code>",
         reply_markup=kb
     )
 
-# -------- CONFIRM CLICKED (CRYPTO) --------
+# Confirm Crypto Payment → Animation → Request Screenshot
 @dp.callback_query(F.data.startswith("v_confirm_crypto_"))
 async def virtual_confirm_crypto(call: CallbackQuery, state: FSMContext):
     uid = int(call.data.split("_")[-1])
-    msg = await call.message.edit_text("Checking Crypto Payment...")
-    await animation(msg, "Checking", 5)
-    await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (CRYPTO).")
+    msg = await call.message.edit_text("Checking crypto payment...")
+    for i in range(5):
+        await asyncio.sleep(1)
+        await msg.edit_text(f"Checking{'.'* (i%4)}")
+    await call.message.answer("Fadlan soo dir Screenshot-ka Crypto payment (PAYMENT).")
     await state.set_state(VirtualState.waiting_screenshot)
 
 # ================== VIRTUAL RECEIVE SCREENSHOT ===================
