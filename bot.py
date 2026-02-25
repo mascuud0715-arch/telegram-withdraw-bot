@@ -4,7 +4,7 @@ import random
 import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import *
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
