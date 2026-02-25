@@ -114,31 +114,37 @@ async def virtual_platform_selected(call: CallbackQuery):
         reply_markup=kb
     )
 
-# ================== VIRTUAL LOCAL PAYMENT + ADMIN OTP FULL ===================
+# ================== VIRTUAL LOCAL PAYMENT FIX ===================
 
-# Step 1: User clicks LOCAL → show number + inline CONFIRM
-@dp.callback_query(F.data == "v_local")
+@dp.callback_query(F.data.startswith("v_local"))
 async def virtual_local(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
+
     if uid not in users:
         await call.message.answer("❌ Dalabka lama helin. Fadlan bilow order cusub.")
         return
+
     number = users[uid]["number"]
+
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(text="CONFIRM", callback_data="v_confirm_payment")]
+        [InlineKeyboardButton(text="CONFIRM", callback_data=f"v_confirm_payment_{uid}")]
     ])
+
     await call.message.edit_text(
         f"Fadlan lacagta ku dir lambarkan:\n\n+252907868526\nLambarkaaga: {number}",
         reply_markup=kb
     )
 
-# Step 2: User clicks CONFIRM → Checking animation → request screenshot
-@dp.callback_query(F.data == "v_confirm_payment")
+# CONFIRM clicked → Checking animation → request screenshot
+@dp.callback_query(F.data.startswith("v_confirm_payment_"))
 async def virtual_confirm_payment(call: CallbackQuery, state: FSMContext):
+    uid = int(call.data.split("_")[-1])
+
     msg = await call.message.edit_text("Checking...")
     for i in range(5):
         await asyncio.sleep(1)
-        await msg.edit_text(f"Checking{'.'*(i%4)}")
+        await msg.edit_text(f"Checking{'.'* (i%4)}")
+
     await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (PAYMENT)")
     await state.set_state(VirtualState.waiting_screenshot)
 
