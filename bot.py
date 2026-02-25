@@ -314,11 +314,6 @@ async def global_error_handler(update, exception):
 # ✅ Aiogram 3.7+ compatible
 # ✅ Animation live implemented
 
-# Run bot
-if __name__ == "__main__":
-    print("Bot fully loaded and running...")
-    asyncio.run(main())
-
 # ===================== CARD SYSTEM ===================
 
 # -------- CARD START --------
