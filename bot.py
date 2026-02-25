@@ -209,7 +209,7 @@ async def admin_send_otp_virtual(call: CallbackQuery):
     users[uid]["otp"] = otp
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"OTP: {otp}", callback_data="show_otp")]
+        [InlineKeyboardButton(text=f"OTP: {otp}"
     ])
 
     await bot.send_message(
