@@ -114,8 +114,7 @@ async def virtual_platform_selected(call: CallbackQuery):
         reply_markup=kb
     )
 
-
-# ================== VIRTUAL LOCAL PAYMENT FULLY AUTOMATED ===================
+# ================== VIRTUAL LOCAL PAYMENT + ADMIN OTP ===================
 
 # Local payment button → shows number + inline CONFIRM
 @dp.callback_query(F.data == "v_payment_local")
@@ -152,6 +151,7 @@ async def virtual_receive_screenshot(msg: Message, state: FSMContext):
         return
 
     users[uid]["screenshot"] = msg.photo[-1].file_id
+
     kb = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_confirm_{uid}"),
@@ -159,6 +159,7 @@ async def virtual_receive_screenshot(msg: Message, state: FSMContext):
             InlineKeyboardButton(text="OTP", callback_data=f"admin_otp_{uid}")
         ]
     ])
+
     caption = (
         f"New Virtual Order\n"
         f"User: {uid}\n"
@@ -166,6 +167,8 @@ async def virtual_receive_screenshot(msg: Message, state: FSMContext):
         f"Number: {data['number']}\n"
         f"Payment Type: LOCAL"
     )
+
+    # Send screenshot to admin
     await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb)
     await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
     await state.clear()
