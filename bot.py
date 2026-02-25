@@ -226,31 +226,43 @@ async def admin_final_confirm_otp(call: CallbackQuery):
     await call.message.edit_text(f"✅ User {uid} OTP Final Confirmed")
 
 # ================= VIRTUAL CRYPTO PAYMENT =================
+# ================== VIRTUAL CRYPTO PAYMENT ==================
 @dp.callback_query(F.data == "v_payment_crypto")
 async def virtual_crypto_payment(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
+    data = users.get(uid)
+    if not data:
+        await call.message.answer("❌ Dalabka lama helin. Fadlan bilow order cusub.")
+        return
+
     text = (
         f"💰 Waxaad lacagta ku diri kartaa Crypto:\n\n"
         f"USDT: <code>{USDT_ADDRESS}</code>\n"
         f"BNB: <code>{BNB_ADDRESS}</code>\n\n"
         f"Kadib taabo CONFIRM si aad u sii wado."
     )
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(text="CONFIRM", callback_data="v_crypto_confirm")]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CONFIRM", callback_data=f"v_crypto_confirm_{uid}")]
     ])
     await call.message.edit_text(text, reply_markup=kb)
 
-# -------- USER CONFIRM CRYPTO --------
-@dp.callback_query(F.data == "v_crypto_confirm")
+# -------- CONFIRM CRYPTO --------
+@dp.callback_query(F.data.startswith("v_crypto_confirm_"))
 async def virtual_crypto_confirm(call: CallbackQuery, state: FSMContext):
+    uid = int(call.data.split("_")[-1])
     msg = await call.message.edit_text("Checking Crypto Payment...")
     await live_animation(msg, "Checking", 5)
+
     await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (Crypto Payment)")
     await state.set_state(VirtualState.waiting_screenshot)
 
 # -------- RECEIVE CRYPTO SCREENSHOT --------
-@dp.message(VirtualState.waiting_screenshot, F.photo)
+@dp.message(F.photo)
 async def virtual_crypto_receive(msg: Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state != VirtualState.waiting_screenshot:
+        return  # Ignore messages outside the expected state
+
     uid = msg.from_user.id
     data = users.get(uid)
     if not data:
@@ -261,6 +273,7 @@ async def virtual_crypto_receive(msg: Message, state: FSMContext):
     users[uid]["screenshot"] = msg.photo[-1].file_id
     await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
 
+    # Send screenshot to admin with inline actions
     kb_admin = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_confirm_{uid}"),
