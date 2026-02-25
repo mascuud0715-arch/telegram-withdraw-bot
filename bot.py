@@ -115,39 +115,9 @@ async def virtual_platform_selected(call: CallbackQuery):
     )
 
 
-# ================== VIRTUAL LOCAL PAYMENT ===================
+# ================== VIRTUAL LOCAL PAYMENT FULLY AUTOMATED ===================
 
-# Platform selection
-@dp.callback_query(F.data == "virtual_start")
-async def virtual_platform(call: CallbackQuery):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=p, callback_data=f"v_{p}") for p in ["WhatsApp", "Instagram", "Telegram"]],
-        [InlineKeyboardButton(text=p, callback_data=f"v_{p}") for p in ["Google", "TikTok", "Facebook"]]
-    ])
-    await call.message.edit_text("Dooro Platform:", reply_markup=kb)
-
-# Platform selected
-@dp.callback_query(F.data.startswith("v_"))
-async def virtual_selected(call: CallbackQuery):
-    platform = call.data.split("_")[1]
-    number = "+25263" + "".join(str(random.randint(0,9)) for _ in range(7))
-    users[call.from_user.id] = {
-        "type": "virtual",
-        "platform": platform,
-        "number": number,
-        "price": "$0.8"
-    }
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="LOCAL", callback_data="v_payment_local")],
-        [InlineKeyboardButton(text="CRYPTO", callback_data="v_payment_crypto")]
-    ])
-    await call.message.edit_text(
-        f"Number: {number}\nQiimaha: $0.8\n\nDooro Payment:",
-        reply_markup=kb
-    )
-
-# -------- LOCAL PAYMENT --------
+# Local payment button → shows number + inline CONFIRM
 @dp.callback_query(F.data == "v_payment_local")
 async def virtual_local(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
@@ -161,7 +131,7 @@ async def virtual_local(call: CallbackQuery, state: FSMContext):
         reply_markup=kb
     )
 
-# CONFIRM → Checking animation → ask for screenshot
+# CONFIRM clicked → Checking animation → ask for screenshot
 @dp.callback_query(F.data == "v_confirm_payment")
 async def virtual_confirm_payment(call: CallbackQuery, state: FSMContext):
     msg = await call.message.edit_text("Checking...")
@@ -171,7 +141,7 @@ async def virtual_confirm_payment(call: CallbackQuery, state: FSMContext):
     await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (PAYMENT)")
     await state.set_state(VirtualState.waiting_screenshot)
 
-# Receive screenshot → send to admin
+# Receive screenshot → send to admin with inline buttons (CONFIRM / REJECT / OTP)
 @dp.message(VirtualState.waiting_screenshot, F.photo)
 async def virtual_receive_screenshot(msg: Message, state: FSMContext):
     uid = msg.from_user.id
@@ -190,7 +160,11 @@ async def virtual_receive_screenshot(msg: Message, state: FSMContext):
         ]
     ])
     caption = (
-        f"New Virtual Order\nUser: {uid}\nNumber: {data['number']}\nPlatform: {data['platform']}\nPayment Type: LOCAL"
+        f"New Virtual Order\n"
+        f"User: {uid}\n"
+        f"Platform: {data['platform']}\n"
+        f"Number: {data['number']}\n"
+        f"Payment Type: LOCAL"
     )
     await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb)
     await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
@@ -210,7 +184,7 @@ async def admin_reject_virtual(call: CallbackQuery):
     await bot.send_message(uid, "❌ Payment lama xaqiijin. Fadlan lacagta dib u soo dir.")
     await call.message.edit_caption("❌ PAYMENT REJECTED")
 
-# Admin OTP → bot generates hidden OTP → user inline
+# Admin OTP → bot generates hidden OTP → user inline button SHOW OTP
 @dp.callback_query(F.data.startswith("admin_otp_"))
 async def admin_send_otp_virtual(call: CallbackQuery):
     uid = int(call.data.split("_")[2])
@@ -226,7 +200,7 @@ async def admin_send_otp_virtual(call: CallbackQuery):
     )
     await call.message.edit_caption("OTP sent to user (hidden from admin)")
 
-# User clicks SHOW OTP → animation live → OTP
+# User clicks SHOW OTP → animation live → OTP displayed
 @dp.callback_query(F.data == "show_otp_user")
 async def show_otp_user(call: CallbackQuery):
     uid = call.from_user.id
@@ -243,7 +217,7 @@ async def show_otp_user(call: CallbackQuery):
     ])
     await msg.edit_text(f"Your OTP Code:\n\n{otp}", reply_markup=kb)
 
-# User click CHECK AGAIN → new OTP
+# User clicks CHECK AGAIN → new OTP generated
 @dp.callback_query(F.data == "check_again_otp")
 async def check_again_otp(call: CallbackQuery):
     uid = call.from_user.id
