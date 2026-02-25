@@ -114,32 +114,86 @@ async def virtual_platform_selected(call: CallbackQuery):
         reply_markup=kb
     )
 
-# ================== VIRTUAL LOCAL PAYMENT ===================
-
+# ======= VIRTUAL LOCAL PAYMENT FULL =======
 @dp.callback_query(F.data == "v_payment_local")
-async def virtual_local_payment(call: CallbackQuery, state: FSMContext):
+async def virtual_local(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
     if uid not in users:
-        await call.message.answer("❌ Dalabka lama helin. Fadlan bilow order cusub.")
-        return
+        return await call.message.answer("❌ Dalabka lama helin. Fadlan bilow order cusub.")
 
     number = users[uid]["number"]
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(text="CONFIRM", callback_data=f"v_confirm_payment_{uid}")]
-    ])
-    await call.message.edit_text(
-        f"Fadlan lacagta ku dir lambarkan:\n{LOCAL_NUMBER}\nLambarkaaga: {number}",
-        reply_markup=kb
-    )
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("CONFIRM", callback_data=f"v_confirm_payment_{uid}")]])
+    await call.message.edit_text(f"Fadlan lacagta ku dir lambarkan:\n\n{LOCAL_NUMBER}\nLambarkaaga: {number}", reply_markup=kb)
 
-# -------- CONFIRM CLICKED (LOCAL) --------
+# CONFIRM clicked → animation → ask for screenshot
 @dp.callback_query(F.data.startswith("v_confirm_payment_"))
 async def virtual_confirm_payment(call: CallbackQuery, state: FSMContext):
     uid = int(call.data.split("_")[-1])
-    msg = await call.message.edit_text("Checking...")
-    await animation(msg, "Checking", 5)
-    await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (LOCAL).")
+    msg = await call.message.edit_text("Checking payment...")
+    await live_animation(msg, "Checking", 5)  # Live animation
+    await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (PAYMENT)")
     await state.set_state(VirtualState.waiting_screenshot)
+
+# Receive screenshot from user → send to admin with inline buttons
+@dp.message(VirtualState.waiting_screenshot, F.photo)
+async def virtual_receive_screenshot(msg: Message, state: FSMContext):
+    uid = msg.from_user.id
+    if uid not in users:
+        await msg.answer("❌ Dalabka lama helin.")
+        await state.clear()
+        return
+
+    users[uid]["screenshot"] = msg.photo[-1].file_id
+    await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
+
+    # Inline buttons for admin: CONFIRM / REJECT / OTP
+    kb = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("CONFIRM", callback_data=f"admin_confirm_{uid}"),
+            InlineKeyboardButton("REJECT", callback_data=f"admin_reject_{uid}"),
+            InlineKeyboardButton("OTP", callback_data=f"admin_otp_{uid}")
+        ]
+    ])
+
+    caption = (
+        f"New Virtual Order (LOCAL)\n"
+        f"User: {uid}\n"
+        f"Platform: {users[uid]['platform']}\n"
+        f"Number: {users[uid]['number']}"
+    )
+
+    # Send screenshot to admin
+    await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb)
+    await state.clear()
+
+# Admin CONFIRM → notify user
+@dp.callback_query(F.data.startswith("admin_confirm_"))
+async def admin_confirm_virtual(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+    msg = await call.message.edit_caption("✅ PAYMENT CONFIRMED")
+    await live_animation(msg, "Notifying user...", 3)
+    await bot.send_message(uid, "✅ Lacagta waa la xaqiijiyay. Adeeggaaga waa la diyaariyey.")
+
+# Admin REJECT → notify user
+@dp.callback_query(F.data.startswith("admin_reject_"))
+async def admin_reject_virtual(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+    msg = await call.message.edit_caption("❌ PAYMENT REJECTED")
+    await live_animation(msg, "Notifying user...", 3)
+    await bot.send_message(uid, "❌ Payment lama xaqiijin. Fadlan lacagta dib u soo dir.")
+    users.pop(uid, None)
+
+# Admin OTP → hidden OTP → user inline SHOW OTP
+@dp.callback_query(F.data.startswith("admin_otp_"))
+async def admin_send_otp_virtual(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+    otp = generate_otp()
+    users[uid]["otp"] = otp
+    users[uid]["otp_requests"] = 0
+
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("SHOW OTP", callback_data="show_otp_user")]])
+    await bot.send_message(uid, f"Number: {users[uid]['number']}\nPlatform: {users[uid]['platform']}\n\nPAYMENT: PAID ✅", reply_markup=kb)
+    await call.message.edit_caption("OTP sent to user (hidden from admin)")
 
 # ================== VIRTUAL CRYPTO PAYMENT ===================
 
