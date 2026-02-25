@@ -77,22 +77,25 @@ async def new_order(msg: Message):
     await msg.answer("Dooro adeeg:", reply_markup=kb)
 
 # ================== VIRTUAL SYSTEM ===================
+
 # -------- PLATFORM SELECTION --------
 @dp.callback_query(F.data == "virtual_start")
 async def virtual_platform(call: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="TIKTOK", callback_data="v_TIKTOK")],
-        [InlineKeyboardButton(text="INSTAGRAM", callback_data="v_INSTAGRAM")],
-        [InlineKeyboardButton(text="FACEBOOK", callback_data="v_FACEBOOK")],
-        [InlineKeyboardButton(text="WHATSAPP", callback_data="v_WHATSAPP")],
-        [InlineKeyboardButton(text="TELEGRAM", callback_data="v_TELEGRAM")]
+        [InlineKeyboardButton(text="WHATSAPP", callback_data="v_platform_WHATSAPP")],
+        [InlineKeyboardButton(text="INSTAGRAM", callback_data="v_platform_INSTAGRAM")],
+        [InlineKeyboardButton(text="TELEGRAM", callback_data="v_platform_TELEGRAM")],
+        [InlineKeyboardButton(text="GOOGLE", callback_data="v_platform_GOOGLE")],
+        [InlineKeyboardButton(text="TIKTOK", callback_data="v_platform_TIKTOK")],
+        [InlineKeyboardButton(text="FACEBOOK", callback_data="v_platform_FACEBOOK")]
     ])
     await call.message.edit_text("Dooro Platform:", reply_markup=kb)
 
-# -------- PLATFORM CHOSEN --------
-@dp.callback_query(F.data.startswith("v_"))
-async def virtual_selected(call: CallbackQuery):
-    platform = call.data.split("_")[1]
+
+# -------- PLATFORM SELECTED --------
+@dp.callback_query(F.data.startswith("v_platform_"))
+async def virtual_platform_selected(call: CallbackQuery):
+    platform = call.data.split("_")[2]
     number = random_number()
 
     users[call.from_user.id] = {
@@ -103,43 +106,40 @@ async def virtual_selected(call: CallbackQuery):
     }
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="LOCAL", callback_data="v_local")],
-        [InlineKeyboardButton(text="CRYPTO", callback_data="v_crypto")]
+        [InlineKeyboardButton(text="LOCAL", callback_data="v_payment_local")],
+        [InlineKeyboardButton(text="CRYPTO", callback_data="v_payment_crypto")]
     ])
-
     await call.message.edit_text(
-        f"Number: {number}\n"
-        f"Qiimaha: $0.8\n\n"
-        f"Dooro Payment:",
+        f"Number: {number}\nQiimaha: $0.8\nDooro Payment:",
         reply_markup=kb
     )
 
+
 # -------- LOCAL PAYMENT --------
-@dp.callback_query(F.data == "v_local")
+@dp.callback_query(F.data == "v_payment_local")
 async def virtual_local(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton(text="CONFIRM", callback_data="v_confirm")]
     ])
     await call.message.edit_text(
-        f"NUMBERKAN LACAGTA KU DIR\n"
-        f"$0.8\n"
-        f"{LOCAL_NUMBER}",
+        f"NUMBERKAN LACAGTA KU DIR\n$0.8\n{LOCAL_NUMBER}",
         reply_markup=kb
     )
 
+
 # -------- CRYPTO PAYMENT --------
-@dp.callback_query(F.data == "v_crypto")
+@dp.callback_query(F.data == "v_payment_crypto")
 async def virtual_crypto(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton(text="CONFIRM", callback_data="v_confirm")]
     ])
     await call.message.edit_text(
-        f"USDT:\n<code>{USDT_ADDRESS}</code>\n\n"
-        f"BNB:\n<code>{BNB_ADDRESS}</code>",
+        f"USDT:\n<code>{USDT_ADDRESS}</code>\nBNB:\n<code>{BNB_ADDRESS}</code>",
         reply_markup=kb
     )
+
 
 # -------- CONFIRM CLICKED --------
 @dp.callback_query(F.data == "v_confirm")
