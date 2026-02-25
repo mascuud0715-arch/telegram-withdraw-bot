@@ -30,10 +30,10 @@ users = {}
 # ================= STATES =================
 
 class VirtualState(StatesGroup):
-waiting_screenshot = State()
+    waiting_screenshot = State()
 
 class CardState(StatesGroup):
-screenshot = State()
+    screenshot = State()
 
 # ================= HELPERS =================
 
