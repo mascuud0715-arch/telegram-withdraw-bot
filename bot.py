@@ -115,24 +115,39 @@ async def virtual_platform_selected(call: CallbackQuery):
     )
 
 
-# ================== VIRTUAL LOCAL PAYMENT ===================
+# ================== VIRTUAL LOCAL PAYMENT FULLY AUTOMATED ===================
 
 # Local payment button
 @dp.callback_query(F.data == "v_payment_local")
 async def virtual_local(call: CallbackQuery, state: FSMContext):
     uid = call.from_user.id
-    # Show user proper message and ask for payment
+    number = users[uid]["number"]
+
+    # Inline CONFIRM button
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CONFIRM", callback_data="v_confirm_payment")]
+    ])
+
     await call.message.edit_text(
-        f"Fadlan lacagta kusoo dir:\n\n{LOCAL_NUMBER}\n\n"
-        "Si loo xaqiijiyo oo aad u hesho OTP"
+        f"Fadlan lacagta ku dir lambarkan:\n\n{LOCAL_NUMBER}\n\n"
+        f"Lambarkaaga: {number}",
+        reply_markup=kb
     )
-    # Set state to waiting screenshot
+
+
+# User click CONFIRM → animation + ask for screenshot
+@dp.callback_query(F.data == "v_confirm_payment")
+async def virtual_confirm_payment(call: CallbackQuery, state: FSMContext):
+    msg = await call.message.edit_text("Checking...")
+    await animation(msg, "Checking", 5)
+
+    await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (PAYMENT)")
     await state.set_state(VirtualState.waiting_screenshot)
 
 
-# Receive screenshot from user
+# Receive screenshot from user → send to admin with inline buttons
 @dp.message(VirtualState.waiting_screenshot, F.photo)
-async def virtual_screenshot(msg: Message, state: FSMContext):
+async def virtual_receive_screenshot(msg: Message, state: FSMContext):
     uid = msg.from_user.id
     data = users.get(uid)
     if not data:
@@ -142,48 +157,58 @@ async def virtual_screenshot(msg: Message, state: FSMContext):
 
     users[uid]["screenshot"] = msg.photo[-1].file_id
 
-    # Send to admin for approval
+    # Inline buttons for admin: CONFIRM / REJECT / OTP
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_confirm_{uid}"),
+            InlineKeyboardButton(text="REJECT", callback_data=f"admin_reject_{uid}"),
+            InlineKeyboardButton(text="OTP", callback_data=f"admin_otp_{uid}")
+        ]
+    ])
+
     caption = (
         f"New Virtual Order\n\n"
         f"User: {uid}\n"
+        f"Platform: {data['platform']}\n"
         f"Number: {data['number']}\n"
-        f"Platform: {data['platform']}"
+        f"Payment Type: LOCAL"
     )
-    kb = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(text="REGISTER", callback_data=f"admin_register_{uid}"),
-            InlineKeyboardButton(text="REJECT", callback_data=f"admin_reject_{uid}"),
-            InlineKeyboardButton(text="BAN", callback_data=f"admin_ban_{uid}")
-        ]
-    ])
-    await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb)
+
+    await bot.send_photo(
+        ADMIN_ID,
+        msg.photo[-1].file_id,
+        caption=caption,
+        reply_markup=kb
+    )
+
     await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
     await state.clear()
 
 
-# Admin register OTP
-@dp.callback_query(F.data.startswith("admin_register_"))
-async def admin_register_virtual(call: CallbackQuery, state: FSMContext):
+# Admin CONFIRM → notify user
+@dp.callback_query(F.data.startswith("admin_confirm_"))
+async def admin_confirm_virtual(call: CallbackQuery):
     uid = int(call.data.split("_")[2])
-    pending_admin_register[call.from_user.id] = uid
-    await call.message.answer("Gali OTP aad rabto inaad siiso user-ka:")
-    await state.set_state(AdminRegisterState.waiting_otp)
+    await bot.send_message(uid, "✅ Lacagta waa la xaqiijiyay. Adeeggaaga waa la diyaariyey.")
+    await call.message.edit_caption("✅ PAYMENT CONFIRMED")
 
 
-# Admin send OTP to user
-@dp.message(AdminRegisterState.waiting_otp)
-async def admin_send_otp(msg: Message, state: FSMContext):
-    if msg.from_user.id != ADMIN_ID:
-        return
-    if msg.from_user.id not in pending_admin_register:
-        return
+# Admin REJECT → notify user
+@dp.callback_query(F.data.startswith("admin_reject_"))
+async def admin_reject_virtual(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+    await bot.send_message(uid, "❌ Payment lama xaqiijin. Fadlan lacagta dib u soo dir.")
+    await call.message.edit_caption("❌ PAYMENT REJECTED")
 
-    uid = pending_admin_register[msg.from_user.id]
-    otp = msg.text.strip()
+
+# Admin OTP → bot generates OTP and sends to user
+@dp.callback_query(F.data.startswith("admin_otp_"))
+async def admin_send_otp_virtual(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+    otp = generate_otp()
     users[uid]["otp"] = otp
-    users[uid]["otp_sent"] = True
 
-    kb = InlineKeyboardMarkup([
+    kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f"OTP: {otp}", callback_data="show_otp")]
     ])
 
@@ -192,13 +217,10 @@ async def admin_send_otp(msg: Message, state: FSMContext):
         f"Number: {users[uid]['number']}\nPlatform: {users[uid]['platform']}\n\nPAYMENT: PAID ✅",
         reply_markup=kb
     )
-
-    await msg.answer("✅ OTP waa la diray.")
-    pending_admin_register.pop(msg.from_user.id)
-    await state.clear()
+    await call.message.edit_caption(f"OTP Sent to user: {otp}")
 
 
-# User click inline OTP button → animation
+# User clicks inline OTP → animation live
 @dp.callback_query(F.data == "show_otp")
 async def show_otp_animation(call: CallbackQuery):
     uid = call.from_user.id
