@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.client.default import DefaultBotProperties
 
-================= CONFIG =================
+# ================= CONFIG =================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 7983838654
@@ -23,11 +23,11 @@ bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher(storage=MemoryStorage())
 logging.basicConfig(level=logging.INFO)
 
-================= DATA STORAGE =================
+# ================= DATA STORAGE =================
 
 users = {}
 
-================= STATES =================
+# ================= STATES =================
 
 class VirtualState(StatesGroup):
 waiting_screenshot = State()
@@ -35,7 +35,7 @@ waiting_screenshot = State()
 class CardState(StatesGroup):
 screenshot = State()
 
-================= HELPERS =================
+# ================= HELPERS =================
 
 def random_number():
 return "+25263" + "".join(str(random.randint(0,9)) for _ in range(7))
@@ -52,7 +52,7 @@ await msg.edit_text(f"{text}{dots}")
 def generate_referral_code():
 return "".join(str(random.randint(0, 9)) for _ in range(8))
 
-================= START ==================
+# ================= START ==================
 
 @dp.message(Command("start"))
 async def start(msg: Message):
@@ -65,7 +65,7 @@ resize_keyboard=True
 )
 await msg.answer("Ku soo dhawoow Service Bot 🤖", reply_markup=kb)
 
-================= NEW ORDER =================
+# ================= NEW ORDER =================
 
 @dp.message(F.text == "New Order")
 async def new_order(msg: Message):
@@ -75,7 +75,7 @@ kb = InlineKeyboardMarkup(inline_keyboard=[
 ])
 await msg.answer("Dooro adeeg:", reply_markup=kb)
 
-================= COSTUMER =================
+# ================= COSTUMER =================
 
 @dp.message(F.text == "Customer")
 async def customer_support(msg: Message):
@@ -85,7 +85,7 @@ await msg.answer(
 "@scholes1"
 )
 
-================= REFERAL =================
+# ================= REFERAL =================
 
 @dp.message(Command("start"))
 async def start(msg: Message):
@@ -119,7 +119,7 @@ kb = ReplyKeyboardMarkup(
 )  
 await msg.answer(f"Ku soo dhawoow Service Bot 🤖\nYour Referral Code: {users[uid]['referral_code']}\nBalance: ${users[uid]['balance']:.2f}", reply_markup=kb)
 
-================== VIRTUAL FLOW =================
+# ================== VIRTUAL FLOW =================
 
 @dp.callback_query(F.data == "virtual_start")
 async def virtual_platform(call: CallbackQuery):
@@ -152,7 +152,7 @@ await call.message.edit_text(
     reply_markup=kb  
 )
 
-================= VIRTUAL LOCAL PAYMENT =================
+# ================= VIRTUAL LOCAL PAYMENT =================
 
 @dp.callback_query(F.data == "v_payment_local")
 async def virtual_local_payment(call: CallbackQuery):
@@ -169,7 +169,7 @@ await call.message.edit_text(
     reply_markup=kb  
 )
 
-================= CONFIRM LOCAL =================
+# ================= CONFIRM LOCAL =================
 
 @dp.callback_query(F.data.startswith("v_confirm_payment_"))
 async def confirm_virtual_payment(call: CallbackQuery, state: FSMContext):
@@ -179,7 +179,7 @@ await live_animation(msg)
 await call.message.answer("Soo dir Screenshot-ka Payment-ka")  
 await state.set_state(VirtualState.waiting_screenshot)
 
-================= RECEIVE VIRTUAL SCREENSHOT =================
+# ================= RECEIVE VIRTUAL SCREENSHOT =================
 
 @dp.message(StateFilter(VirtualState.waiting_screenshot), F.photo)
 async def receive_virtual_screenshot(msg: Message, state: FSMContext):
@@ -208,7 +208,7 @@ caption = (
 await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb_admin)  
 await state.clear()
 
-================= VIRTUAL CRYPTO PAYMENT =================
+# ================= VIRTUAL CRYPTO PAYMENT =================
 
 @dp.callback_query(F.data == "v_payment_crypto")
 async def virtual_crypto_payment(call: CallbackQuery):
@@ -229,7 +229,7 @@ text = (
 
 await call.message.edit_text(text, reply_markup=kb)
 
-================= CONFIRM CRYPTO =================
+# ================= CONFIRM CRYPTO =================
 
 @dp.callback_query(F.data.startswith("v_crypto_confirm_"))
 async def confirm_crypto(call: CallbackQuery, state: FSMContext):
@@ -239,7 +239,7 @@ await live_animation(msg)
 await call.message.answer("Soo dir Screenshot-ka Crypto Payment-ka")  
 await state.set_state(VirtualState.waiting_screenshot)
 
-================= ADMIN CONFIRM =================
+# ================= ADMIN CONFIRM =================
 
 @dp.callback_query(F.data.startswith("admin_confirm_"))
 async def admin_confirm(call: CallbackQuery):
@@ -255,7 +255,7 @@ await bot.send_message(
 
 await call.message.edit_caption("✅ PAYMENT CONFIRMED")
 
-================= ADMIN REJECT =================
+# ================= ADMIN REJECT =================
 
 @dp.callback_query(F.data.startswith("admin_reject_"))
 async def admin_reject(call: CallbackQuery):
@@ -269,7 +269,7 @@ await bot.send_message(
 await call.message.edit_caption("❌ PAYMENT REJECTED")  
 users.pop(uid, None)
 
-================= ADMIN SEND OTP =================
+# ================= ADMIN SEND OTP =================
 
 @dp.callback_query(F.data.startswith("admin_otp_"))
 async def admin_send_otp(call: CallbackQuery):
@@ -293,7 +293,7 @@ await bot.send_message(
 
 await call.message.edit_caption("OTP sent to user")
 
-================= USER SHOW OTP =================
+# ================= USER SHOW OTP =================
 
 @dp.callback_query(F.data == "show_otp_user")
 async def show_otp(call: CallbackQuery):
@@ -313,7 +313,7 @@ kb = InlineKeyboardMarkup(inline_keyboard=[
 
 await msg.edit_text(f"OTP Code:\n\n<code>{otp}</code>", reply_markup=kb)
 
-================= USER CHECK AGAIN =================
+# ================= USER CHECK AGAIN =================
 
 @dp.callback_query(F.data == "check_again_otp")
 async def check_again(call: CallbackQuery):
@@ -344,7 +344,7 @@ if users[uid]["otp_requests"] == 2:
         reply_markup=kb_admin  
     )
 
-================= ADMIN FINAL CONFIRM =================
+# ================= ADMIN FINAL CONFIRM =================
 
 @dp.callback_query(F.data.startswith("admin_final_confirm_"))
 async def admin_final_confirm(call: CallbackQuery):
@@ -368,7 +368,7 @@ kb = InlineKeyboardMarkup(inline_keyboard=[
 ])
 await call.message.edit_text("Dooro Card Level:", reply_markup=kb)
 
-================= SELECT CARD LEVEL =================
+# ================= SELECT CARD LEVEL =================
 
 @dp.callback_query(F.data.startswith("card_level_"))
 async def card_level_selected(call: CallbackQuery):
@@ -395,7 +395,7 @@ await call.message.edit_text(
     reply_markup=kb  
 )
 
-================= CARD LOCAL PAYMENT =================
+# ================= CARD LOCAL PAYMENT =================
 
 @dp.callback_query(F.data == "card_payment_local")
 async def card_payment_local(call: CallbackQuery):
@@ -414,7 +414,7 @@ await call.message.edit_text(
     reply_markup=kb  
 )
 
-================= CARD CRYPTO PAYMENT =================
+# ================= CARD CRYPTO PAYMENT =================
 
 @dp.callback_query(F.data == "card_payment_crypto")
 async def card_payment_crypto(call: CallbackQuery):
@@ -435,7 +435,7 @@ await call.message.edit_text(
     reply_markup=kb  
 )
 
-================= CARD CONFIRM =================
+# ================= CARD CONFIRM =================
 
 @dp.callback_query(F.data.startswith("card_confirm_payment_"))
 async def card_confirm(call: CallbackQuery, state: FSMContext):
@@ -445,7 +445,7 @@ await live_animation(msg)
 await call.message.answer("Soo dir Screenshot-ka Payment-ka")  
 await state.set_state(CardState.screenshot)
 
-================= RECEIVE CARD SCREENSHOT =================
+# ================= RECEIVE CARD SCREENSHOT =================
 
 @dp.message(StateFilter(CardState.screenshot), F.photo)
 async def receive_card_screenshot(msg: Message, state: FSMContext):
@@ -481,7 +481,7 @@ await bot.send_photo(
 
 await state.clear()
 
-================= ADMIN CONFIRM CARD =================
+#================= ADMIN CONFIRM CARD =================
 
 @dp.callback_query(F.data.startswith("admin_card_confirm_"))
 async def admin_card_confirm(call: CallbackQuery):
@@ -498,7 +498,7 @@ await bot.send_message(
 
 await call.message.edit_caption("✅ CARD PAYMENT CONFIRMED")
 
-================= ADMIN REJECT CARD =================
+# ================= ADMIN REJECT CARD =================
 
 @dp.callback_query(F.data.startswith("admin_card_reject_"))
 async def admin_card_reject(call: CallbackQuery):
@@ -512,7 +512,7 @@ await bot.send_message(
 await call.message.edit_caption("❌ CARD PAYMENT REJECTED")  
 users.pop(uid, None)
 
-================= ADMIN ASK CARD =================
+# ================= ADMIN ASK CARD =================
 
 @dp.callback_query(F.data.startswith("admin_card_ask_"))
 async def admin_card_ask(call: CallbackQuery):
