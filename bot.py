@@ -106,71 +106,113 @@ async def virtual_confirm_payment(call: CallbackQuery, state: FSMContext):
     await call.message.answer("Fadlan soo dir Screenshot-ka lacag bixinta (PAYMENT)")
     await state.set_state(VirtualState.waiting_screenshot)
 
-# ===== VIRTUAL CRYPTO =====
+# ================= VIRTUAL CRYPTO PAYMENT =================
 @dp.callback_query(F.data == "v_payment_crypto")
 async def virtual_crypto(call: CallbackQuery):
+    uid = call.from_user.id
     kb = InlineKeyboardMarkup([[InlineKeyboardButton(text="CONFIRM", callback_data="v_confirm_crypto")]])
-    await call.message.edit_text(f"USDT: <code>{USDT_ADDRESS}</code>\nBNB: <code>{BNB_ADDRESS}</code>", reply_markup=kb)
+    await call.message.edit_text(
+        f"USDT:\n<code>{USDT_ADDRESS}</code>\nBNB:\n<code>{BNB_ADDRESS}</code>",
+        reply_markup=kb
+    )
 
 @dp.callback_query(F.data == "v_confirm_crypto")
 async def virtual_confirm_crypto(call: CallbackQuery, state: FSMContext):
     msg = await call.message.edit_text("Checking...")
     await live_animation(msg, "Checking", 5)
-    await call.message.answer("Fadlan soo dir Screenshot-ka Crypto payment.")
+    await call.message.answer("Fadlan soo dir SCREENSHOT-ka lacag bixinta (PAYMENT).")
     await state.set_state(VirtualState.waiting_screenshot)
 
-# ===== RECEIVE SCREENSHOT =====
+# ===== RECEIVE SCREENSHOT (Virtual Local & Crypto) =====
 @dp.message(VirtualState.waiting_screenshot, F.photo)
-async def virtual_screenshot(msg: Message, state: FSMContext):
+async def virtual_receive_screenshot(msg: Message, state: FSMContext):
     uid = msg.from_user.id
     data = users.get(uid)
     if not data:
-        await msg.answer("❌ Khalad: User data lama helin.")
+        await msg.answer("❌ Dalabka lama helin. Fadlan bilow order cusub.")
         await state.clear()
         return
+
     users[uid]["screenshot"] = msg.photo[-1].file_id
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_confirm_{uid}"),
-         InlineKeyboardButton(text="REJECT", callback_data=f"admin_reject_{uid}"),
-         InlineKeyboardButton(text="OTP", callback_data=f"admin_otp_{uid}")]
-    ])
-    caption = f"New Virtual Order\nUser: {uid}\nPlatform: {data['platform']}\nNumber: {data['number']}"
-    await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb)
     await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
+
+    # Admin Inline Keyboard
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_confirm_{uid}"),
+            InlineKeyboardButton(text="REJECT", callback_data=f"admin_reject_{uid}"),
+            InlineKeyboardButton(text="OTP", callback_data=f"admin_otp_{uid}")
+        ]
+    ])
+    caption = f"New Virtual Order\nUser: {uid}\nPlatform: {data['platform']}\nNumber: {data['number']}\nPayment Type: {data['type'].upper()}"
+    await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb)
     await state.clear()
 
-# ===== ADMIN ACTIONS =====
+# ================= ADMIN ACTIONS (Virtual) =================
 @dp.callback_query(F.data.startswith("admin_confirm_"))
-async def admin_confirm(call: CallbackQuery):
+async def admin_confirm_virtual(call: CallbackQuery):
     uid = int(call.data.split("_")[2])
-    await bot.send_message(uid, "✅ Payment Confirmed. Adeeggaaga waa la diyaariyey.")
+    await bot.send_message(uid, "✅ Lacagta waa la xaqiijiyay. Adeeggaaga waa la diyaariyey.")
     await call.message.edit_caption("✅ PAYMENT CONFIRMED")
 
 @dp.callback_query(F.data.startswith("admin_reject_"))
-async def admin_reject(call: CallbackQuery):
+async def admin_reject_virtual(call: CallbackQuery):
     uid = int(call.data.split("_")[2])
-    await bot.send_message(uid, "❌ Payment Lama xaqiijin. Fadlan isku day mar kale.")
+    await bot.send_message(uid, "❌ Payment lama xaqiijin. Fadlan lacag dib u soo dir.")
     await call.message.edit_caption("❌ PAYMENT REJECTED")
     users.pop(uid, None)
 
 @dp.callback_query(F.data.startswith("admin_otp_"))
-async def admin_send_otp(call: CallbackQuery):
+async def admin_send_otp_virtual(call: CallbackQuery):
     uid = int(call.data.split("_")[2])
     otp = generate_otp()
     users[uid]["otp"] = otp
+    users[uid]["otp_requests"] = 0
     kb = InlineKeyboardMarkup([[InlineKeyboardButton(text="SHOW OTP", callback_data="show_otp_user")]])
-    await bot.send_message(uid, f"Number: {users[uid]['number']}\nPlatform: {users[uid]['platform']}\nPAYMENT: PAID ✅", reply_markup=kb)
+    await bot.send_message(uid,
+        f"Number: {users[uid]['number']}\nPlatform: {users[uid]['platform']}\n\nPAYMENT: PAID ✅",
+        reply_markup=kb
+    )
     await call.message.edit_caption("OTP sent to user (hidden from admin)")
 
+# ================= USER VIEW OTP =================
 @dp.callback_query(F.data == "show_otp_user")
 async def show_otp_user(call: CallbackQuery):
     uid = call.from_user.id
     otp = users[uid].get("otp")
+    if not otp:
+        await call.message.edit_text("❌ OTP lama helin, fadlan la xiriir admin.")
+        return
     msg = await call.message.edit_text("OTP Loading...")
     await live_animation(msg, "OTP", 5)
-    await msg.edit_text(f"Your OTP Code: {otp}")
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton(text="CHECK AGAIN", callback_data="check_again_otp")]])
+    await msg.edit_text(f"Your OTP Code:\n\n{otp}", reply_markup=kb)
 
-# ================= CARD SYSTEM =================
+@dp.callback_query(F.data == "check_again_otp")
+async def check_again_otp(call: CallbackQuery):
+    uid = call.from_user.id
+    users[uid]["otp_requests"] += 1
+    new_otp = generate_otp()
+    users[uid]["otp"] = new_otp
+    msg = await call.message.edit_text("Generating new OTP...")
+    await live_animation(msg, "OTP", 5)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton(text="CHECK AGAIN", callback_data="check_again_otp")]])
+    await msg.edit_text(f"Your NEW OTP Code:\n\n{new_otp}", reply_markup=kb)
+
+    if users[uid]["otp_requests"] == 2:
+        kb_admin = InlineKeyboardMarkup([[InlineKeyboardButton(text="CONFIRM OTP", callback_data=f"admin_final_confirm_{uid}")]])
+        await bot.send_message(ADMIN_ID, f"User {uid} has requested OTP 2 times. Confirm final OTP.", reply_markup=kb_admin)
+
+@dp.callback_query(F.data.startswith("admin_final_confirm_"))
+async def admin_final_confirm_otp(call: CallbackQuery):
+    uid = int(call.data.split("_")[3])
+    final_otp = users[uid].get("otp")
+    await bot.send_message(uid, f"✅ OTP Final Confirmed: {final_otp}\nYour payment is now fully verified!")
+    await call.message.edit_text(f"✅ User {uid} OTP Final Confirmed")
+
+# ===================== CARD SYSTEM ===================
+
+# -------- CARD START --------
 @dp.callback_query(F.data == "card_start")
 async def card_start(call: CallbackQuery, state: FSMContext):
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -179,97 +221,162 @@ async def card_start(call: CallbackQuery, state: FSMContext):
     ])
     await call.message.edit_text("Dooro Nooca Card:", reply_markup=kb)
 
+# -------- CARD TYPE SELECTED --------
 @dp.callback_query(F.data.startswith("card_type_"))
 async def card_type_selected(call: CallbackQuery, state: FSMContext):
-    price, ctype = ("$1","NORMAL") if call.data=="card_type_normal" else ("$2","VIP")
+    if call.data == "card_type_normal":
+        price = "$1"
+        ctype = "NORMAL"
+    else:
+        price = "$2"
+        ctype = "VIP"
+
     await state.update_data(price=price, card_type=ctype)
-    await call.message.answer("Geli Magacaaga Saddex Magac:")
+    await call.message.answer("Geli Magacaaga Saddex Magac (Tusaale: Ahmed Ali Jama):")
     await state.set_state(CardState.fullname)
 
-# -------- FULL CARD FLOW (Local & Crypto like Virtual) --------
+# -------- FULL NAME VALIDATION --------
 @dp.message(CardState.fullname)
 async def card_fullname(msg: Message, state: FSMContext):
     parts = msg.text.strip().split()
-    if len(parts)!=3 or not all(p.isalpha() for p in parts):
-        await msg.answer("❌ Geli 3 magac sax ah")
+    if len(parts) != 3 or not all(p.isalpha() for p in parts):
+        await msg.answer("❌ Fadlan geli 3 magac sax ah (Tusaale: Ahmed Ali Jama)")
         return
     await state.update_data(fullname=msg.text.strip())
-    await msg.answer("Geli Magaca Hooyada:")
+    await msg.answer("Geli Magaca Hooyada (Hal Magac oo xarfo kaliya ah):")
     await state.set_state(CardState.mother)
 
+# -------- MOTHER NAME VALIDATION --------
 @dp.message(CardState.mother)
 async def card_mother(msg: Message, state: FSMContext):
     if not msg.text.isalpha():
-        await msg.answer("❌ Magaca Hooyada waa xarfo keliya")
+        await msg.answer("❌ Magaca hooyada waa inuu ahaadaa xarfo kaliya.")
         return
     await state.update_data(mother=msg.text.strip())
-    await msg.answer("Soo dir Sawirkaaga (Face Only):")
+    await msg.answer("Fadlan soo dir Sawirkaaga (Face Only).")
     await state.set_state(CardState.face)
 
+# -------- FACE ONLY CHECK --------
 @dp.message(CardState.face)
-async def card_face(msg: Message, state: FSMContext):
+async def card_face_validation(msg: Message, state: FSMContext):
     if not msg.photo:
-        await msg.answer("❌ Fadlan sawir face dir")
+        await msg.answer("❌ FADLAN SAWIRKAAGA SOO DIR (Face Only).")
         return
-    await state.update_data(face=msg.photo[-1].file_id)
+    face_id = msg.photo[-1].file_id
+    await state.update_data(face=face_id)
+
+    checking = await msg.answer("Checking...")
+    await live_animation(checking, "Checking", 5)
+
     number = random_number()
-    await state.update_data(number=number)
     data = await state.get_data()
+    await state.update_data(number=number)
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="LOCAL", callback_data="card_pay_local")],
         [InlineKeyboardButton(text="CRYPTO", callback_data="card_pay_crypto")]
     ])
-    await msg.answer(f"Number: {number}\nQiimaha: {data['price']}\nDooro Payment:", reply_markup=kb)
+
+    await msg.answer(
+        f"Number: {number}\n"
+        f"Qiimaha: {data['price']}\n\n"
+        f"Dooro Payment Method:",
+        reply_markup=kb
+    )
     await state.set_state(CardState.payment_method)
 
-# ===== CARD PAYMENTS =====
+# -------- PAYMENT METHOD --------
 @dp.callback_query(F.data.startswith("card_pay_"))
-async def card_payment(call: CallbackQuery, state: FSMContext):
+async def card_payment_method(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    if call.data=="card_pay_local":
-        text = f"Lacagta ku dir:\n{LOCAL_NUMBER}\nQiimaha: {data['price']}"
+    if call.data == "card_pay_local":
+        text = f"NUMBERKAN LACAGTA KU DIR\n{data['price']}\n{LOCAL_NUMBER}"
     else:
-        text = f"USDT: <code>{USDT_ADDRESS}</code>\nBNB: <code>{BNB_ADDRESS}</code>"
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton(text="CONFIRM", callback_data="card_confirm_payment")]])
+        text = f"USDT:\n<code>{USDT_ADDRESS}</code>\n\nBNB:\n<code>{BNB_ADDRESS}</code>"
+
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(text="CONFIRM", callback_data="card_confirm_payment")]
+    ])
     await call.message.edit_text(text, reply_markup=kb)
 
-@dp.callback_query(F.data=="card_confirm_payment")
+# -------- CONFIRM PAYMENT --------
+@dp.callback_query(F.data == "card_confirm_payment")
 async def card_confirm_payment(call: CallbackQuery, state: FSMContext):
-    await call.message.edit_text("Checking...")
-    await live_animation(call.message, "Checking", 5)
-    await call.message.answer("Fadlan soo dir Screenshot-ka payment")
+    msg = await call.message.edit_text("Checking...")
+    await live_animation(msg, "Checking", 5)
+    await call.message.answer("Fadlan soo dir Screenshot-ka Lacag Bixinta.")
     await state.set_state(CardState.screenshot)
 
+# -------- RECEIVE SCREENSHOT --------
 @dp.message(CardState.screenshot, F.photo)
 async def card_receive_screenshot(msg: Message, state: FSMContext):
     uid = msg.from_user.id
     data = await state.get_data()
-    users[uid] = data
-    users[uid]["screenshot"] = msg.photo[-1].file_id
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_card_confirm_{uid}"),
-                                InlineKeyboardButton(text="REJECT", callback_data=f"admin_card_reject_{uid}")]])
-    caption = f"New CARD Order\nUser: {uid}\nType: {data['card_type']}\nFullname: {data['fullname']}\nMother: {data['mother']}\nNumber: {data['number']}\nPrice: {data['price']}"
+    await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_card_confirm_{uid}"),
+            InlineKeyboardButton(text="REJECT", callback_data=f"admin_card_reject_{uid}")
+        ]
+    ])
+
+    caption = (
+        f"New CARD Order\n\n"
+        f"User: {uid}\n"
+        f"Type: {data['card_type']}\n"
+        f"Full Name: {data['fullname']}\n"
+        f"Mother: {data['mother']}\n"
+        f"Number: {data['number']}\n"
+        f"Price: {data['price']}"
+    )
+
+    # Send screenshot + face to admin
     await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb)
     await bot.send_photo(ADMIN_ID, data["face"])
+
+    # Timeout if admin does nothing
+    async def timeout():
+        await asyncio.sleep(10)
+        await bot.send_message(uid, "Fadlan la xiriir admin si dalabka loo dhamaystiro.")
+    asyncio.create_task(timeout())
+
     await state.clear()
 
+# -------- ADMIN CONFIRM/REJECT --------
 @dp.callback_query(F.data.startswith("admin_card_confirm_"))
 async def admin_card_confirm(call: CallbackQuery):
     uid = int(call.data.split("_")[3])
-    await bot.send_message(uid,"✅ Card Payment Confirmed")
+    await bot.send_message(uid, "✅ Dalabkaaga waa la Ansixiyay.")
     await call.message.edit_caption("✅ CARD PAYMENT CONFIRMED")
 
 @dp.callback_query(F.data.startswith("admin_card_reject_"))
 async def admin_card_reject(call: CallbackQuery):
     uid = int(call.data.split("_")[3])
-    await bot.send_message(uid,"❌ Card Payment Rejected")
+    await bot.send_message(uid, "❌ Payment lama xaqiijin.")
     await call.message.edit_caption("❌ CARD PAYMENT REJECTED")
-    users.pop(uid, None)
+
+# ================= PROTECTION SYSTEM =================
+# Ka hortag fariimo random ah marka user-ku aanu ku jirin state
+@dp.message()
+async def ignore_unexpected(msg: Message, state: FSMContext):
+    current_state = await state.get_state()
+    # Haddii aanu jirin state shaqaynaya, iska indha tir
+    if current_state is None:
+        return
+
+# ================= CLEANUP SAFETY =================
+async def safe_delete_user(uid: int):
+    if uid in users:
+        users.pop(uid, None)
+
+# ================= LOGGING SAFETY =================
+logging.getLogger("aiogram").setLevel(logging.INFO)
 
 # ================= MAIN =================
 async def main():
     print("Bot is running...")
     await dp.start_polling(bot)
 
-if __name__=="__main__":
+if __name__ == "__main__":
     asyncio.run(main())
