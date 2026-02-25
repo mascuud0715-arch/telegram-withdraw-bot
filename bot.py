@@ -295,8 +295,9 @@ async def virtual_crypto_receive(msg: Message, state: FSMContext):
 
 # ================= CARD PAYMENT (LOCAL + CRYPTO) =================
 # ================= CARD PAYMENT FLOW (LOCAL + CRYPTO) =================
-@dp.callback_query(F.data.startswith("card_pay_"))
-async def card_payment(call: CallbackQuery, state: FSMContext):
+@dp.message(F.photo, state=VirtualState.waiting_screenshot)
+async def virtual_receive_screenshot(msg: Message, state: FSMContext):
+    ...
     uid = call.from_user.id
     data = await state.get_data()
     if call.data == "card_pay_local":
