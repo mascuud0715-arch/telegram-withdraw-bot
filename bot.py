@@ -319,7 +319,7 @@ async def card_confirm_payment(call: CallbackQuery, state: FSMContext):
     await state.set_state(CardState.screenshot)
 
 # -------- RECEIVE CARD SCREENSHOT --------
-@dp.message(F.photo, CardState.screenshot)
+@dp.message(F.photo, state=CardState.screenshot)
 async def card_receive_screenshot(msg: Message, state: FSMContext):
     uid = msg.from_user.id
     data = await state.get_data()
