@@ -8,7 +8,6 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.client.default import DefaultBotProperties
 
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -18,7 +17,8 @@ LOCAL_NUMBER = "+252907868526"
 BNB_ADDRESS = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
 USDT_ADDRESS = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
 
-bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
+# Bot initialization with HTML parse mode (DefaultBotProperties removed)
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(storage=MemoryStorage())
 logging.basicConfig(level=logging.INFO)
 
