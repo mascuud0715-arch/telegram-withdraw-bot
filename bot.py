@@ -207,14 +207,18 @@ async def withdrawal_crypto(msg: Message):
     await dp.current_state(user=uid).set_state(WithdrawalState.waiting_crypto_address)
 
 
-# ================= RECEIVE LOCAL NUMBER =================
-@dp.message(StateFilter(WithdrawalState.waiting_local_number))
+# ================= RECEIVE LOCAL NUMBER =================@dp.message(StateFilter(WithdrawalState.waiting_local_number))
 async def receive_local_number(msg: Message, state: FSMContext):
     uid = msg.from_user.id
     user = users.get(uid)
+
+    if not user:
+        await msg.answer("❌ User lama helin.")
+        return
+
     number = msg.text.strip()
 
-    if user['balance'] < 1:
+    if user.get('balance', 0) < 1:
         await msg.answer("❌ Balance-kaaga ma gaadhin $1. Waxaad u baahan tahay ugu yaraan $1.")
         return
 
@@ -233,9 +237,11 @@ async def receive_local_number(msg: Message, state: FSMContext):
 
     # Admin Notification
     kb_admin = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{request_id}"),
-         InlineKeyboardButton(text="REJECT", callback_data=f"admin_withdraw_reject_{request_id}"),
-         InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{request_id}")]
+        [
+            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{request_id}"),
+            InlineKeyboardButton(text="REJECT", callback_data=f"admin_withdraw_reject_{request_id}"),
+            InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{request_id}")
+        ]
     ])
 
     text = (
@@ -248,7 +254,12 @@ async def receive_local_number(msg: Message, state: FSMContext):
     )
 
     await bot.send_message(ADMIN_ID, text, reply_markup=kb_admin)
-    await msg.answer(f"✅ Withdrawal Request Sent\nRequest ID: {request_id}\nBalance Left: ${user['balance']:.2f}")
+    await msg.answer(
+        f"✅ Withdrawal Request Sent\n"
+        f"Request ID: {request_id}\n"
+        f"Balance Left: ${user['balance']:.2f}"
+    )
+
     await state.clear()
 
 
