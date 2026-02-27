@@ -1,3 +1,6 @@
+# =========================
+# PART 1/7 — CORE SETUP
+# =========================
 import os
 import asyncio
 import random
@@ -12,9 +15,6 @@ from aiogram.client.default import DefaultBotProperties
 
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook"
-
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set in environment variables!")
 
@@ -26,22 +26,24 @@ USDT_ADDRESS = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
 
 logging.basicConfig(level=logging.INFO)
 
+# Initialize bot with default properties (parse_mode HTML)
 bot = Bot(
     token=BOT_TOKEN,
     default=DefaultBotProperties(parse_mode="HTML")
 )
 
+# Initialize dispatcher with memory storage
 dp = Dispatcher(storage=MemoryStorage())
 
 # ================= DATA STORAGE =================
-users = {}
-withdrawals = {}
+users = {}           # Stores user data
+withdrawals = {}     # Stores withdrawal requests
 stats = {
     "total_users": 0,
     "total_virtual": 0,
     "total_card": 0
 }
-withdrawal_counter = 10000
+withdrawal_counter = 10000  # Auto increment withdrawal ID
 
 # ================= STATES =================
 class VirtualState(StatesGroup):
@@ -66,26 +68,31 @@ class WithdrawCrypto(StatesGroup):
     waiting_amount = State()
 
 # ================= HELPERS =================
-def random_number():
+def random_number() -> str:
     return "+25263" + "".join(str(random.randint(0, 9)) for _ in range(7))
 
-def generate_otp():
+def generate_otp() -> str:
     return "".join(random.choices("0123456789", k=6))
 
-def generate_referral():
+def generate_referral() -> str:
     return "".join(random.choices("0123456789", k=10))
 
-async def live_animation(msg: Message, text="Checking", seconds=5):
+async def live_animation(msg: Message, text: str = "Checking", seconds: int = 5):
     for i in range(seconds):
         dots = "." * (i % 4)
         await asyncio.sleep(1)
         await msg.edit_text(f"{text}{dots}")
 
-# ================= START =================
+# =========================
+# PART 2/7 — START / BALANCE / REFERRAL
+# =========================
+
+# ================= START COMMAND =================
 @dp.message(Command("start"))
 async def start(msg: Message):
     uid = msg.from_user.id
 
+    # Add new user if not exists
     if uid not in users:
         users[uid] = {
             "balance": 0.0,
@@ -102,6 +109,7 @@ async def start(msg: Message):
         }
         stats["total_users"] += 1
 
+    # Main keyboard for users
     kb = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="Balance"), KeyboardButton(text="Referral")],
@@ -110,15 +118,16 @@ async def start(msg: Message):
         resize_keyboard=True
     )
 
+    # Admin panel button only for admin
     if uid == ADMIN_ID:
-        kb.keyboard.append([KeyboardButton(text="Admin Panel")])
+        kb.add(KeyboardButton(text="Admin Panel"))
 
     await msg.answer(
         "Ku soo dhawoow Service Bot 🤖\nDooro waxa aad rabto:",
         reply_markup=kb
     )
 
-# ================= BALANCE =================
+# ================= BALANCE MENU =================
 @dp.message(F.text == "Balance")
 async def show_balance(msg: Message):
     uid = msg.from_user.id
@@ -130,7 +139,7 @@ async def show_balance(msg: Message):
 
     await msg.answer(f"💰 Balance-kaaga hadda: ${user['balance']:.2f}")
 
-# ================= REFERRAL =================
+# ================= REFERRAL MENU =================
 @dp.message(F.text == "Referral")
 async def show_referral(msg: Message):
     uid = msg.from_user.id
@@ -145,10 +154,17 @@ async def show_referral(msg: Message):
     text += f"Number of referrals: {len(ref_list)}\n\n"
     text += "Referred Users:\n"
 
-    for r in ref_list:
-        text += f"- {r}\n"
+    if ref_list:
+        for r in ref_list:
+            text += f"- {r}\n"
+    else:
+        text += "No referrals yet."
 
     await msg.answer(text)
+
+# =========================
+# PART 3/7 — WITHDRAWAL MENU & ADMIN PANEL
+# =========================
 
 # ================= WITHDRAWAL MENU =================
 @dp.message(F.text == "Withdrawal")
@@ -160,14 +176,12 @@ async def withdrawal_menu(msg: Message):
         ],
         resize_keyboard=True
     )
-
     await msg.answer("💸 Dooro habka lacag bixinta:", reply_markup=kb)
 
 # ================= ADMIN PANEL =================
 @dp.message(F.text == "Admin Panel")
 async def admin_panel(msg: Message):
     uid = msg.from_user.id
-
     if uid != ADMIN_ID:
         await msg.answer("❌ Kaliya admin ayaa arki kara panel-kan.")
         return
@@ -181,10 +195,9 @@ async def admin_panel(msg: Message):
         ],
         resize_keyboard=True
     )
-
     await msg.answer("⚙️ Admin Panel:", reply_markup=kb)
 
-# ================= STATS =================
+# ================= ADMIN STATS =================
 @dp.message(F.text == "Stats")
 async def admin_stats(msg: Message):
     if msg.from_user.id != ADMIN_ID:
@@ -202,7 +215,6 @@ async def admin_stats(msg: Message):
         f"Total Card Orders: {total_card_get}\n"
         f"Total Virtual Orders: {total_virtual_get}"
     )
-
     await msg.answer(text)
 
 # ================= ADMIN ADD BALANCE =================
@@ -210,16 +222,14 @@ async def admin_stats(msg: Message):
 async def admin_add_balance(msg: Message, state: FSMContext):
     if msg.from_user.id != ADMIN_ID:
         return
-
     await msg.answer("📌 Geli Telegram ID-ga user-ka:")
     await state.set_state(AdminAddBalanceState.waiting_user_id)
-
 
 @dp.message(StateFilter(AdminAddBalanceState.waiting_user_id))
 async def receive_user_id(msg: Message, state: FSMContext):
     try:
         user_id = int(msg.text.strip())
-    except:
+    except ValueError:
         await msg.answer("❌ Fadlan geli ID sax ah.")
         return
 
@@ -227,18 +237,18 @@ async def receive_user_id(msg: Message, state: FSMContext):
     await msg.answer("📌 Geli Amount-ka lagu dari doono Balance:")
     await state.set_state(AdminAddBalanceState.waiting_amount)
 
-
 @dp.message(StateFilter(AdminAddBalanceState.waiting_amount))
 async def receive_amount(msg: Message, state: FSMContext):
     try:
         amount = float(msg.text.strip())
-    except:
+    except ValueError:
         await msg.answer("❌ Fadlan geli Amount sax ah (tusaale: 1.5)")
         return
 
     data = await state.get_data()
     user_id = data.get("user_id")
 
+    # Haddii user cusub yahay, abuuro
     if user_id not in users:
         users[user_id] = {
             "balance": 0.0,
@@ -255,15 +265,10 @@ async def receive_amount(msg: Message, state: FSMContext):
         }
 
     users[user_id]["balance"] += amount
-
-    await msg.answer(
-        f"✅ User {user_id} Balance updated: ${users[user_id]['balance']:.2f}"
-    )
-
+    await msg.answer(f"✅ User {user_id} Balance updated: ${users[user_id]['balance']:.2f}")
     await state.clear()
 
-
-# ================= WITHDRAWAL CHECK (ADMIN) =================
+# ================= ADMIN WITHDRAWAL CHECK =================
 @dp.message(F.text == "Withdrawal Check")
 async def withdrawal_check(msg: Message):
     if msg.from_user.id != ADMIN_ID:
@@ -282,25 +287,18 @@ async def withdrawal_check(msg: Message):
             f"🏦 {'Number: ' + req['number'] if req['type'] == 'LOCAL' else 'Address: ' + req['address']}\n"
             f"⏳ Status: {req['status']}"
         )
-
         kb_admin = InlineKeyboardMarkup(inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text="CONFIRM",
-                    callback_data=f"admin_withdraw_confirm_{req_id}"
-                ),
-                InlineKeyboardButton(
-                    text="REJECT",
-                    callback_data=f"admin_withdraw_reject_{req_id}"
-                ),
-                InlineKeyboardButton(
-                    text="ASK",
-                    callback_data=f"admin_withdraw_ask_{req_id}"
-                )
+                InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{req_id}"),
+                InlineKeyboardButton(text="REJECT", callback_data=f"admin_withdraw_reject_{req_id}"),
+                InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{req_id}")
             ]
         ])
-
         await msg.answer(text, reply_markup=kb_admin)
+
+# =========================
+# PART 4/7 — LOCAL WITHDRAWAL HANDLING
+# =========================
 
 # ================= LOCAL WITHDRAWAL =================
 @dp.message(F.text == "LOCAL")
@@ -315,7 +313,6 @@ async def withdrawal_local(msg: Message, state: FSMContext):
     await msg.answer("📌 Geli amount-ka aad rabto inaad la baxdo (min $1):")
     await state.set_state(WithdrawLocal.waiting_amount)
 
-
 @dp.message(StateFilter(WithdrawLocal.waiting_amount))
 async def receive_local_withdraw(msg: Message, state: FSMContext):
     uid = msg.from_user.id
@@ -325,9 +322,10 @@ async def receive_local_withdraw(msg: Message, state: FSMContext):
         await msg.answer("❌ User lama helin.")
         return
 
+    # Hubi amount
     try:
         amount = float(msg.text.strip())
-    except:
+    except ValueError:
         await msg.answer("❌ Fadlan geli amount sax ah (tusaale: 1.0)")
         return
 
@@ -336,7 +334,6 @@ async def receive_local_withdraw(msg: Message, state: FSMContext):
         return
 
     balance = user.get("balance", 0)
-
     if amount > balance:
         await msg.answer(f"❌ Balance-gaaga ma filna. Current: ${balance:.2f}")
         return
@@ -345,8 +342,10 @@ async def receive_local_withdraw(msg: Message, state: FSMContext):
     withdrawal_counter += 1
     req_id = withdrawal_counter
 
+    # Local number user-ka lagu dirayo
     number = LOCAL_NUMBER
 
+    # Ku dar codsiga withdrawals dict
     withdrawals[req_id] = {
         "uid": uid,
         "amount": amount,
@@ -355,8 +354,10 @@ async def receive_local_withdraw(msg: Message, state: FSMContext):
         "status": "Pending"
     }
 
+    # Ka jar balance
     users[uid]["balance"] -= amount
 
+    # Jawaabta user
     await msg.answer(
         f"✅ Withdrawal Request Sent\n"
         f"🧾 Request ID: {req_id}\n"
@@ -370,23 +371,16 @@ async def receive_local_withdraw(msg: Message, state: FSMContext):
         )
     )
 
+    # Inline buttons loogu talagalay admin
     kb_admin = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(
-                text="CONFIRM",
-                callback_data=f"admin_withdraw_confirm_{req_id}"
-            ),
-            InlineKeyboardButton(
-                text="REJECT",
-                callback_data=f"admin_withdraw_reject_{req_id}"
-            ),
-            InlineKeyboardButton(
-                text="ASK",
-                callback_data=f"admin_withdraw_ask_{req_id}"
-            )
+            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{req_id}"),
+            InlineKeyboardButton(text="REJECT", callback_data=f"admin_withdraw_reject_{req_id}"),
+            InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{req_id}")
         ]
     ])
 
+    # Notify admin
     await bot.send_message(
         ADMIN_ID,
         f"💳 NEW LOCAL WITHDRAWAL\n\n"
@@ -400,7 +394,11 @@ async def receive_local_withdraw(msg: Message, state: FSMContext):
 
     await state.clear()
 
-# ================= CRYPTO WITHDRAWAL =================
+    # =========================
+# PART 5/7 — CRYPTO WITHDRAWAL HANDLING
+# =========================
+
+# ================= CRYPTO WITHDRAWAL MENU =================
 @dp.message(F.text == "CRYPTO")
 async def withdrawal_crypto(msg: Message):
     kb = ReplyKeyboardMarkup(
@@ -410,15 +408,13 @@ async def withdrawal_crypto(msg: Message):
         ],
         resize_keyboard=True
     )
-
     await msg.answer("💰 Dooro Crypto:", reply_markup=kb)
 
-
+# ================= RECEIVE CRYPTO ADDRESS =================
 @dp.message(F.text == "USDT-BEP20")
 async def withdrawal_crypto_address(msg: Message, state: FSMContext):
     await msg.answer("📌 Soo dir Address-kaaga Crypto:")
     await state.set_state(WithdrawCrypto.waiting_address)
-
 
 @dp.message(StateFilter(WithdrawCrypto.waiting_address))
 async def receive_crypto_address(msg: Message, state: FSMContext):
@@ -432,7 +428,7 @@ async def receive_crypto_address(msg: Message, state: FSMContext):
     await msg.answer("📌 Geli Amount-ka lagu bixinayo (min $1):")
     await state.set_state(WithdrawCrypto.waiting_amount)
 
-
+# ================= RECEIVE CRYPTO AMOUNT =================
 @dp.message(StateFilter(WithdrawCrypto.waiting_amount))
 async def receive_crypto_amount(msg: Message, state: FSMContext):
     uid = msg.from_user.id
@@ -447,7 +443,7 @@ async def receive_crypto_amount(msg: Message, state: FSMContext):
 
     try:
         amount = float(msg.text.strip())
-    except:
+    except ValueError:
         await msg.answer("❌ Fadlan geli amount sax ah (tusaale: 1.0)")
         return
 
@@ -456,7 +452,6 @@ async def receive_crypto_amount(msg: Message, state: FSMContext):
         return
 
     balance = user.get("balance", 0)
-
     if amount > balance:
         await msg.answer(f"❌ Balance-gaaga ma filna. Current: ${balance:.2f}")
         return
@@ -465,6 +460,7 @@ async def receive_crypto_amount(msg: Message, state: FSMContext):
     withdrawal_counter += 1
     req_id = withdrawal_counter
 
+    # Ku dar codsiga withdrawals dict
     withdrawals[req_id] = {
         "uid": uid,
         "amount": amount,
@@ -473,8 +469,10 @@ async def receive_crypto_amount(msg: Message, state: FSMContext):
         "status": "Pending"
     }
 
+    # Ka jar balance
     users[uid]["balance"] -= amount
 
+    # Jawaabta user
     await msg.answer(
         f"✅ Withdrawal Request Sent\n"
         f"🧾 Request ID: {req_id}\n"
@@ -488,23 +486,16 @@ async def receive_crypto_amount(msg: Message, state: FSMContext):
         )
     )
 
+    # Inline buttons loogu talagalay admin
     kb_admin = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(
-                text="CONFIRM",
-                callback_data=f"admin_withdraw_confirm_{req_id}"
-            ),
-            InlineKeyboardButton(
-                text="REJECT",
-                callback_data=f"admin_withdraw_reject_{req_id}"
-            ),
-            InlineKeyboardButton(
-                text="ASK",
-                callback_data=f"admin_withdraw_ask_{req_id}"
-            )
+            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{req_id}"),
+            InlineKeyboardButton(text="REJECT", callback_data=f"admin_withdraw_reject_{req_id}"),
+            InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{req_id}")
         ]
     ])
 
+    # Notify admin
     await bot.send_message(
         ADMIN_ID,
         f"💳 NEW CRYPTO WITHDRAWAL\n\n"
@@ -518,7 +509,11 @@ async def receive_crypto_amount(msg: Message, state: FSMContext):
 
     await state.clear()
 
-# ================== ADMIN WITHDRAWAL CALLBACKS ==================
+# =========================
+# PART 6/7 — ADMIN CALLBACK HANDLERS
+# =========================
+
+# ================= ADMIN CONFIRM WITHDRAWAL =================
 @dp.callback_query(F.data.startswith("admin_withdraw_confirm_"))
 async def admin_withdraw_confirm(call: CallbackQuery):
     req_id = int(call.data.split("_")[-1])
@@ -543,6 +538,7 @@ async def admin_withdraw_confirm(call: CallbackQuery):
     await call.message.edit_text(f"✅ Withdrawal Request {req_id} Confirmed")
 
 
+# ================= ADMIN REJECT WITHDRAWAL =================
 @dp.callback_query(F.data.startswith("admin_withdraw_reject_"))
 async def admin_withdraw_reject(call: CallbackQuery):
     req_id = int(call.data.split("_")[-1])
@@ -555,7 +551,7 @@ async def admin_withdraw_reject(call: CallbackQuery):
     uid = request["uid"]
     request["status"] = "Rejected"
 
-    # Refund balance
+    # Refund balance to user
     if uid in users:
         users[uid]["balance"] += request["amount"]
 
@@ -572,6 +568,7 @@ async def admin_withdraw_reject(call: CallbackQuery):
     await call.message.edit_text(f"❌ Withdrawal Request {req_id} Rejected")
 
 
+# ================= ADMIN ASK USER =================
 @dp.callback_query(F.data.startswith("admin_withdraw_ask_"))
 async def admin_withdraw_ask(call: CallbackQuery):
     req_id = int(call.data.split("_")[-1])
@@ -591,15 +588,15 @@ async def admin_withdraw_ask(call: CallbackQuery):
     await call.message.edit_text(f"⚠️ Admin Requested User for Withdrawal {req_id}")
 
 
-# ================== REFERRAL SYSTEM HOOK ==================
+# ================= REFERRAL SYSTEM =================
 def add_referral(user_id: int, ref_code: str):
     """Add referral user if ref_code exists"""
     for uid, data in users.items():
         if data.get("ref_code") == ref_code:
             if user_id not in data["referrals"]:
                 data["referrals"].append(user_id)
-                # Optionally, add bonus balance
-                data["balance"] += 0.5  # Example bonus
+                # Optional bonus for referral
+                data["balance"] += 0.5
             break
 
 
@@ -616,38 +613,11 @@ async def referral_handler(msg: Message):
     add_referral(uid, ref_code)
     await msg.answer(f"✅ Referral code applied: {ref_code}")
 
-# ================== ADMIN PANEL & BACK BUTTON ==================
-@dp.message(F.text == "Back")
-async def back_to_main(msg: Message):
-    uid = msg.from_user.id
-    if uid == ADMIN_ID:
-        kb = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="Stats"), KeyboardButton(text="Add Balance")],
-                [KeyboardButton(text="Withdrawal Check")],
-                [KeyboardButton(text="Back")]
-            ],
-            resize_keyboard=True
-        )
-        await msg.answer("⚙️ Admin Panel:", reply_markup=kb)
-    else:
-        kb = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="Balance"), KeyboardButton(text="Referral")],
-                [KeyboardButton(text="Withdrawal")]
-            ],
-            resize_keyboard=True
-        )
-        await msg.answer("Ku soo dhawoow Service Bot 🤖\nDooro waxa aad rabto:", reply_markup=kb)
+# =========================
+# PART 7/7 — INLINE NAVIGATION & MAIN ENTRY POINT
+# =========================
 
-
-# ================== USER MENU BUTTONS ==================
-@dp.message(F.text == "Start Over")
-async def restart_menu(msg: Message):
-    await start(msg)
-
-
-# ================== INLINE BUTTON NAVIGATION ==================
+# ================= INLINE USER NAVIGATION =================
 @dp.callback_query(F.data == "check_balance")
 async def inline_check_balance(call: CallbackQuery):
     uid = call.from_user.id
@@ -668,18 +638,19 @@ async def inline_show_referrals(call: CallbackQuery):
 
     ref_list = user.get("referrals", [])
     text = f"👥 Referral Code: {user['ref_code']}\n"
-    text += f"Number of referrals: {len(ref_list)}\n"
-    text += "\nReferred Users:\n"
+    text += f"Number of referrals: {len(ref_list)}\n\n"
+    text += "Referred Users:\n"
     for r in ref_list:
         text += f"- {r}\n"
     await call.message.edit_text(text)
 
 
-# ================== ADMIN INLINE NAVIGATION ==================
+# ================= INLINE ADMIN NAVIGATION =================
 @dp.callback_query(F.data == "admin_stats")
 async def inline_admin_stats(call: CallbackQuery):
     if call.from_user.id != ADMIN_ID:
         return
+
     total_users = len(users)
     total_balance = sum(u.get("balance", 0) for u in users.values())
     total_card_get = sum(1 for u in users.values() if u.get("type") == "card")
@@ -700,26 +671,9 @@ async def inline_admin_add_balance(call: CallbackQuery):
     if call.from_user.id != ADMIN_ID:
         return
     await call.message.edit_text("📌 Geli Telegram ID-ga user-ka:")
-    await dp.current_state(user=call.from_user.id).set_state(AdminAddBalance.waiting_user_id)
+    await dp.current_state(user=call.from_user.id).set_state(AdminAddBalanceState.waiting_user_id)
 
 
-# ================== HELPER FUNCTIONS FOR INLINE KEYBOARDS ==================
-def main_user_inline_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Check Balance", callback_data="check_balance")],
-        [InlineKeyboardButton(text="Referral", callback_data="show_referrals")]
-    ])
-
-
-def main_admin_inline_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Stats", callback_data="admin_stats")],
-        [InlineKeyboardButton(text="Add Balance", callback_data="admin_add_balance")],
-        [InlineKeyboardButton(text="Withdrawal Check", callback_data="admin_withdraw_check")]
-    ])
-
-
-# ================== ADMIN INLINE WITHDRAW CHECK ==================
 @dp.callback_query(F.data == "admin_withdraw_check")
 async def inline_admin_withdraw_check(call: CallbackQuery):
     if call.from_user.id != ADMIN_ID:
@@ -738,7 +692,6 @@ async def inline_admin_withdraw_check(call: CallbackQuery):
             f"🏦 {'Number: ' + req['number'] if req['type'] == 'LOCAL' else 'Address: ' + req['address']}\n"
             f"⏳ Status: {req['status']}"
         )
-
         kb_admin = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{req_id}"),
@@ -746,36 +699,39 @@ async def inline_admin_withdraw_check(call: CallbackQuery):
                 InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{req_id}")
             ]
         ])
-
         await call.message.answer(text, reply_markup=kb_admin)
 
 
-# ================== MAIN ENTRY POINT ==================
-async def main():
-    logging.info("Bot is starting...")
-    try:
-        await dp.start_polling(bot)
-    except Exception as e:
-        logging.error(f"Bot encountered an error: {e}")
+# ================= HELPER FUNCTIONS =================
+def main_user_inline_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Check Balance", callback_data="check_balance")],
+        [InlineKeyboardButton(text="Referral", callback_data="show_referrals")]
+    ])
 
-# ================= SAFE START FOR TELEGRAM POLLING =================
+
+def main_admin_inline_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Stats", callback_data="admin_stats")],
+        [InlineKeyboardButton(text="Add Balance", callback_data="admin_add_balance")],
+        [InlineKeyboardButton(text="Withdrawal Check", callback_data="admin_withdraw_check")]
+    ])
+
+
+# ================= MAIN ENTRY POINT =================
 async def main():
-    """Start polling and run the bot safely"""
     logging.info("Bot is starting...")
+
     # Delete webhook if exists to avoid TelegramConflictError
     await bot.delete_webhook(drop_pending_updates=True)
-    
+
     try:
         await dp.start_polling(bot)
     except Exception as e:
         logging.error(f"Bot encountered an error: {e}")
 
-# ================= RUN =================
+
+# ================= RUN BOT =================
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main()
-
-                async def main():
-    logging.info("Bot is starting...")
-    await bot.delete_webhook(drop_pending_updates=True)  # <-- hubi indentation
-    await dp.start_polling(bot)
+    asyncio.run(main())
