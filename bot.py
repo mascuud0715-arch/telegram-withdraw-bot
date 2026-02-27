@@ -758,8 +758,18 @@ async def main():
     except Exception as e:
         logging.error(f"Bot encountered an error: {e}")
 
+# ================= SAFE START FOR TELEGRAM POLLING =================
+async def main():
+    """Start polling and run the bot safely"""
+    logging.info("Bot is starting...")
+    # Delete webhook if exists to avoid TelegramConflictError
+    await bot.delete_webhook(drop_pending_updates=True)
+    
+    try:
+        await dp.start_polling(bot)
+    except Exception as e:
+        logging.error(f"Bot encountered an error: {e}")
 
-# ================== RUN BOT ==================
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
+    asyncio.run(main()
