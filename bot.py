@@ -770,6 +770,7 @@ async def main():
     except Exception as e:
         logging.error(f"Bot encountered an error: {e}")
 
+# ================= RUN =================
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main()
