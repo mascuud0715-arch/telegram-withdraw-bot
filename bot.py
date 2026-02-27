@@ -17,7 +17,6 @@ LOCAL_NUMBER = "+252907868526"
 BNB_ADDRESS = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
 USDT_ADDRESS = "0x98ffcb29a4fc182d461ebdba54648d8fe24597ac"
 
-bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(storage=MemoryStorage())
 logging.basicConfig(level=logging.INFO)
 
