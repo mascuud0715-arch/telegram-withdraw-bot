@@ -13,6 +13,8 @@ from aiogram.client.default import DefaultBotProperties
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook"
+
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set in environment variables!")
 
