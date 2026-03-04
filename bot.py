@@ -70,6 +70,8 @@ async def virtual_platform(call: CallbackQuery):
         [InlineKeyboardButton(text="WHATSAPP", callback_data="v_platform_WHATSAPP")],
         [InlineKeyboardButton(text="INSTAGRAM", callback_data="v_platform_INSTAGRAM")],
         [InlineKeyboardButton(text="TELEGRAM", callback_data="v_platform_TELEGRAM")]
+        [InlineKeyboardButton(text="TIKTOK", callback_data="v_platform_INSTAGRAM")],
+        [InlineKeyboardButton(text="FACEBOOK", callback_data="v_platform_INSTAGRAM")],
     ])
     await call.message.edit_text("Dooro Platform:", reply_markup=kb)
 
@@ -301,8 +303,8 @@ async def admin_final_confirm(call: CallbackQuery):
 @dp.callback_query(F.data == "card_start")
 async def card_start(call: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="LEVEL 1", callback_data="card_level_1")],
-        [InlineKeyboardButton(text="LEVEL 2", callback_data="card_level_2")]
+        [InlineKeyboardButton(text="NORMAL", callback_data="card_level_1")],
+        [InlineKeyboardButton(text="VIP", callback_data="card_level_2")]
     ])
     await call.message.edit_text("Dooro Card Level:", reply_markup=kb)
 
